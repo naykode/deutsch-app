@@ -751,9 +751,21 @@ function loadDeVoice(){
 if(window.speechSynthesis){loadDeVoice();window.speechSynthesis.addEventListener('voiceschanged',loadDeVoice);}
 function speak(text){
   if(!text||typeof text!=='string'||!text.trim()||!window.speechSynthesis||!audioEnabled)return;
+  // Firefox fix: always cancel + get fresh voices + small delay
   window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);u.lang='de-DE';u.rate=0.88;
-  if(deVoice)u.voice=deVoice;window.speechSynthesis.speak(u);
+  const doSpeak=()=>{
+    const voices=window.speechSynthesis.getVoices();
+    const v=voices.find(v=>v.lang==='de-DE')
+           ||voices.find(v=>v.lang.startsWith('de-'))
+           ||voices.find(v=>v.lang.toLowerCase().startsWith('de'))
+           ||null;
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang='de-DE'; u.rate=0.88;
+    if(v) u.voice=v;
+    window.speechSynthesis.speak(u);
+  };
+  // setTimeout fixes Firefox stuck-queue bug
+  setTimeout(doSpeak, 50);
 }
 
 // ═══════════════════════════════════════
