@@ -788,8 +788,18 @@ if(window.speechSynthesis){loadDeVoice();window.speechSynthesis.addEventListener
 function speak(text){
   if(!text||typeof text!=='string'||!window.speechSynthesis||!audioEnabled)return;
   window.speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);u.lang='de-DE';u.rate=0.88;
-  if(deVoice)u.voice=deVoice;window.speechSynthesis.speak(u);
+  const doSpeak=()=>{
+    const voices=window.speechSynthesis.getVoices();
+    const v=voices.find(v=>v.lang==='de-DE')
+           ||voices.find(v=>v.lang.startsWith('de-'))
+           ||voices.find(v=>v.lang.toLowerCase().startsWith('de'))
+           ||null;
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang='de-DE'; u.rate=0.88;
+    if(v) u.voice=v;
+    window.speechSynthesis.speak(u);
+  };
+  setTimeout(doSpeak,50);
 }
 
 // ═══════════════════════════════════════
