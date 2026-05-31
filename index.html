@@ -279,7 +279,7 @@ main{
 
 <div class="flash" id="flashEl"></div>
 
-<header>
+<header dir="ltr">
   <div style="display:flex;align-items:center;gap:12px;">
     <div class="logo">Arti<em>kel</em></div>
     <a href="verbs.html" class="nav-link" data-i18n="navToVerbs">Verben →</a>
@@ -340,7 +340,7 @@ main{
 
     <!-- ACTION AREA: article buttons ↔ weiter in same fixed slot -->
     <div class="action-area" id="actionArea">
-      <div class="article-btns" id="articleBtns">
+      <div class="article-btns" id="articleBtns" dir="ltr">
         <button class="art-btn der" data-article="der"><span class="art-main">der</span><span class="art-sub">mask.</span></button>
         <button class="art-btn die" data-article="die"><span class="art-main">die</span><span class="art-sub">fem.</span></button>
         <button class="art-btn das" data-article="das"><span class="art-main">das</span><span class="art-sub">neut.</span></button>
@@ -668,7 +668,7 @@ function handleAnswer(chosen){
 
   // Example section: slides in BELOW Weiter
   const ex=document.getElementById('exSection');
-  if(word.example_de||word.example_en){
+  if(word.example_de||getExample(word)){
     document.getElementById('exDe').textContent=word.example_de||'';
     document.getElementById('exEn').textContent=getExample(word);
     ex.classList.remove('hidden');
