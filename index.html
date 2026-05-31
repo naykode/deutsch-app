@@ -808,7 +808,7 @@ document.querySelectorAll('.art-btn').forEach(btn=>
 document.getElementById('nextBtn').addEventListener('click',advance);
 
 document.getElementById('speakBtn').addEventListener('click',()=>{
-  if(queueIndex<todayQueue.length){const w=todayQueue[queueIndex];if(w?.noun)speak(w.word);}
+  if(queueIndex<todayQueue.length){const w=todayQueue[queueIndex];if(w?.word)speak(w.word);}
 });
 
 document.getElementById('reviewBtn').addEventListener('click',startMistakeReview);
