@@ -4,12 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
 <title>Artikel – German Article Trainer</title>
-  <link rel="manifest" href="/deutsch-app/manifest.json">
-  <link rel="icon" type="image/png" href="/deutsch-app/icon/icon-192.png">
-  <link rel="apple-touch-icon" href="/deutsch-app/icon/icon-192.png">
-  <link rel="apple-touch-icon" href="/deutsch-app/icon/icon-512.png">
+<link rel="manifest" href="/deutsch-app/manifest.json">
+<link rel="icon" type="image/png" href="/deutsch-app/icon/icon-192.png">
+<link rel="apple-touch-icon" href="/deutsch-app/icon/icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="/deutsch-app/icon/icon-512.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -406,6 +405,12 @@ const SUPA_URL  = 'https://vloafmvpmghhncwmnpnx.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsb2FmbXZwbWdoaG5jd21ucG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTI3NjAsImV4cCI6MjA5MjkyODc2MH0.iUtPE1fVHymhPFHbwKPnxRSzXTzcYCXSnBKpXFu5ty8';
 const TABLE     = 'nouns'; // new clean table
 const DAILY_N   = 20;
+// ── Language content helpers ──
+const LANG_MEANING={en:'english',ar:'arabic',tr:'turkish',fa:'farsi',ku:'kurdish',ps:'pashto'};
+const LANG_EXAMPLE={en:'example_en',ar:'example_ar',tr:'example_tr',fa:'example_fa',ku:'example_ku',ps:'example_ps'};
+function getLang(){return window.i18n?window.i18n.detect():'en';}
+function getMeaning(w){const c=LANG_MEANING[getLang()]||'english';return w[c]||w.english||'';}
+function getExample(w){const c=LANG_EXAMPLE[getLang()]||'example_en';return w[c]||w.example_en||'';}
 const MASTERY_N = 3;
 const LEVELS    = ['A1','A2','B1'];
 
@@ -444,7 +449,7 @@ async function fetchAllWords(){
   const PAGE=1000;let all=[],from=0;
   while(true){
     const{data,error}=await db.from(TABLE)
-      .select('id,word,article,english,example_de,example_en,level,topic')
+      .select('id,word,article,english,example_de,example_en,level,topic,arabic,example_ar,turkish,example_tr,farsi,example_fa,kurdish,example_ku,pashto,example_ps')
       .order('id',{ascending:true})
       .range(from,from+PAGE-1);
     if(error) throw new Error(error.message+(error.hint?'\n'+error.hint:''));
@@ -653,8 +658,8 @@ function handleAnswer(chosen){
   // Feedback: banner + meaning inside card
   const bn=document.getElementById('fbBanner');
   bn.className='fb-banner '+(correct?'ok':'err');
-  bn.textContent=correct?T('feedbackOk'):`✗ Falsch — es heißt: „${word.article} ${word.word}"`;
-  document.getElementById('meaningTxt').textContent=word.english||'';
+  bn.textContent=correct?T('feedbackOk'):T('feedbackErr',word.article,word.word);
+  document.getElementById('meaningTxt').textContent=getMeaning(word);
   document.getElementById('feedbackArea').classList.remove('hidden');
 
   // ACTION AREA: HIDE buttons, show Weiter in their place
@@ -665,7 +670,7 @@ function handleAnswer(chosen){
   const ex=document.getElementById('exSection');
   if(word.example_de||word.example_en){
     document.getElementById('exDe').textContent=word.example_de||'';
-    document.getElementById('exEn').textContent=word.example_en||'';
+    document.getElementById('exEn').textContent=getExample(word);
     ex.classList.remove('hidden');
   }else{
     ex.classList.add('hidden');
