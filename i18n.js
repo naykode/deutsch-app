@@ -47,7 +47,7 @@ en:{
   feedbackOk:'✓ Richtig!',
   feedbackErr:(a,n)=>`✗ Falsch — es heißt: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ Falsch — es bedeutet: „${e}"`,
-  maskLabel:'masc.', femLabel:'fem.', neutLabel:'neut.', langLabel:'Language',
+  maskLabel:'masc.', femLabel:'fem.', neutLabel:'neut.', madeBy:'Made by nayko · 2025',langChangeWarning:'Session is active — change language? Session stats will reset.',langLabel:'Language',
 },
 ar:{
   statMastered:'✅ محفوظ', statStreak:'🔥 أيام متتالية', statCorrect:'🎯 صحيح',
@@ -84,7 +84,7 @@ ar:{
   feedbackOk:'✓ صحيح!',
   feedbackErr:(a,n)=>`✗ خطأ — الصحيح „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ خطأ — المعنى „${e}"`,
-  maskLabel:'مذ.', femLabel:'مؤن.', neutLabel:'محايد.', langLabel:'اللغة',
+  maskLabel:'مذ.', femLabel:'مؤن.', neutLabel:'محايد.', madeBy:'صُنع بواسطة nayko · 2025',langChangeWarning:'الجلسة نشطة — هل تريد تغيير اللغة؟ ستُعاد إحصائيات الجلسة.',langLabel:'اللغة',
 },
 tr:{
   statMastered:'✅ Ustalaştı', statStreak:'🔥 Seri', statCorrect:'🎯 Doğru',
@@ -121,7 +121,7 @@ tr:{
   feedbackOk:'✓ Doğru!',
   feedbackErr:(a,n)=>`✗ Yanlış — doğrusu „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ Yanlış — anlamı „${e}"`,
-  maskLabel:'erk.', femLabel:'diş.', neutLabel:'nötr.', langLabel:'Dil',
+  maskLabel:'erk.', femLabel:'diş.', neutLabel:'nötr.', madeBy:'nayko tarafından · 2025',langChangeWarning:'Oturum devam ediyor — dil değiştirilsin mi? Oturum istatistikleri sıfırlanacak.',langLabel:'Dil',
 },
 fa:{
   statMastered:'✅ مسلط', statStreak:'🔥 رگه', statCorrect:'🎯 صحیح',
@@ -158,7 +158,7 @@ fa:{
   feedbackOk:'✓ درست!',
   feedbackErr:(a,n)=>`✗ اشتباه — درست: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ اشتباه — معنی: „${e}"`,
-  maskLabel:'مذکر', femLabel:'مؤنث', neutLabel:'خنثی', langLabel:'زبان',
+  maskLabel:'مذکر', femLabel:'مؤنث', neutLabel:'خنثی', madeBy:'ساخته nayko · 2025',langChangeWarning:'جلسه فعال است — زبان تغییر شود؟ آمار جلسه ریست می‌شود.',langLabel:'زبان',
 },
 ku:{
   statMastered:'✅ Serwerî', statStreak:'🔥 Xêz', statCorrect:'🎯 Rast e',
@@ -195,7 +195,7 @@ ku:{
   feedbackOk:'✓ Rast e!',
   feedbackErr:(a,n)=>`✗ Xelet — rast: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ Xelet — watê: „${e}"`,
-  maskLabel:'nêr.', femLabel:'mê.', neutLabel:'neut.', langLabel:'Ziman',
+  maskLabel:'nêr.', femLabel:'mê.', neutLabel:'neut.', madeBy:'Çêkirî ji aliyê nayko · 2025',langChangeWarning:'Rûniştîn çalak e — ziman were guhertin? Statîstîkên rûniştinê were sifir kirin.',langLabel:'Ziman',
 },
 ps:{
   statMastered:'✅ ماسټر شوی', statStreak:'🔥 سټریک', statCorrect:'🎯 سمه ده',
@@ -232,7 +232,7 @@ ps:{
   feedbackOk:'✓ سم!',
   feedbackErr:(a,n)=>`✗ غلط — سم: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ غلط — معنا: „${e}"`,
-  maskLabel:'نارینه', femLabel:'ښځینه', neutLabel:'خنثی', langLabel:'ژبه',
+  maskLabel:'نارینه', femLabel:'ښځینه', neutLabel:'خنثی', madeBy:'د nayko لخوا جوړ شوی · 2025',langChangeWarning:'غونډه فعاله ده — ژبه بدله شي؟ د غونډې احصایې به بیا تنظیم شي.',langLabel:'ژبه',
 },
 };
 
@@ -293,7 +293,13 @@ function buildPicker(){
     const active=code===cur;
     btn.style.cssText=`padding:11px 14px;border-radius:10px;border:2px solid ${active?'var(--acc,#7048E8)':'var(--border)'};background:${active?'var(--acc-bg,#F3F0FF)':'var(--card2)'};color:var(--ink);font-size:.95rem;font-weight:700;text-align:center;cursor:pointer;transition:all .15s;font-family:inherit;`;
     btn.textContent=(active?'✓ ':'')+name;
-    btn.onclick=()=>setLang(code);
+    btn.onclick=()=>{
+      if(code===cur) return;
+      if(typeof window.sessionActive==='function'&&window.sessionActive()){
+        if(!window.confirm(T('langChangeWarning'))) return;
+      }
+      setLang(code);
+    };
     grid.appendChild(btn);
   });
   sheet.append(handle,title,grid);
