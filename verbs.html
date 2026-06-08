@@ -428,6 +428,7 @@ let allVerbs=[],todayQueue=[],queueIndex=0,answered=false;
 let currentChoices=[];          // MCQ choices for current word
 let audioEnabled=true,deVoice=null;
 let sesCorrect=0,sesWrong=0,sesMistakeIds=[],isReviewSes=false;
+window.sessionActive=()=>(sesCorrect+sesWrong)>0;
 let sesDisplayBase=0;
 
 const {createClient}=window.supabase;
@@ -706,7 +707,7 @@ function handleAnswer(chosenId,correctId){
   if(word.example_de||word.example_en){
     // Fill the blank with the verb (infinitive, italic)
     const filled=(word.example_de||'').replace(
-      '___',`<strong>${word.word}</strong>`
+      '___',`<strong>${word.example_verb||word.word}</strong>`
     );
     document.getElementById('exDe').innerHTML=filled;
     document.getElementById('exEn').textContent=getExample(word);
@@ -792,21 +793,17 @@ function startNochmal(){
 // ═══════════════════════════════════════
 function loadDeVoice(){
   const vs=window.speechSynthesis?.getVoices()||[];
-  deVoice=vs.find(v=>v.lang==='de-DE')||vs.find(v=>v.lang.startsWith('de-'))||null;
+  deVoice=vs.find(v=>v.lang==='de-DE')||vs.find(v=>v.lang.startsWith('de-'))||vs.find(v=>v.lang.toLowerCase().startsWith('de'))||null;
 }
 if(window.speechSynthesis){loadDeVoice();window.speechSynthesis.addEventListener('voiceschanged',loadDeVoice);}
 function speak(text){
-  if(!text||typeof text!=='string'||!window.speechSynthesis||!audioEnabled)return;
+  if(!text||typeof text!=='string'||!text.trim()||!window.speechSynthesis||!audioEnabled)return;
   window.speechSynthesis.cancel();
   const doSpeak=()=>{
-    const voices=window.speechSynthesis.getVoices();
-    const v=voices.find(v=>v.lang==='de-DE')
-           ||voices.find(v=>v.lang.startsWith('de-'))
-           ||voices.find(v=>v.lang.toLowerCase().startsWith('de'))
-           ||null;
+    if(!deVoice) loadDeVoice(); // use cached voice, refresh if null
     const u=new SpeechSynthesisUtterance(text);
     u.lang='de-DE'; u.rate=0.88;
-    if(v) u.voice=v;
+    if(deVoice) u.voice=deVoice;
     window.speechSynthesis.speak(u);
   };
   setTimeout(doSpeak,50);
@@ -908,5 +905,9 @@ document.addEventListener('keydown',e=>{
 
 init();
 </script>
+
+<footer style="text-align:center;padding:16px 0 28px;font-size:.75rem;color:var(--ink3);" dir="ltr">
+  <span data-i18n="madeBy">Made by nayko · 2025</span>
+</footer>
 </body>
 </html>
