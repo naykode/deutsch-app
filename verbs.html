@@ -396,10 +396,12 @@ main{
     <p>Export your verb practice progress or reset to start fresh.</p>
     <div class="sheet-btns">
       <button class="sheet-btn" id="exportBtn" data-i18n="exportBtn">📤 Export progress (JSON)</button>
-      <button class="sheet-btn danger" id="resetBtn" data-i18n="resetBtn">🗑️ Reset verb progress</button>
+      <button class="sheet-btn" id="importBtn" data-i18n="importBtn">📥 Import progress (JSON)</button>
+<button class="sheet-btn danger" id="resetBtn" data-i18n="resetBtn">🗑️ Reset verb progress</button>
       <button class="sheet-btn" id="closeSheetBtn" data-i18n="cancelBtn">✕ Cancel</button>
     </div>
-  </div>
+  <input type="file" id="importFile" accept=".json" style="display:none">
+</div>
 </div>
 
 <script>
@@ -876,6 +878,36 @@ document.getElementById('exportBtn').addEventListener('click',()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`verben-${today()}.json`;a.click();
   document.getElementById('sheetOv').classList.remove('open');
+});
+
+document.getElementById('importBtn').addEventListener('click',()=>{
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change',(e)=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.progress||!data.exportedAt){
+        alert(T('importError'));return;
+      }
+      if(!confirm(T('importConfirm'))) return;
+      if(data.progress)   LS.s('vb_progress',data.progress);
+      if(data.mistakes)   LS.s('vb_mistakes',data.mistakes);
+      if(data.dailyStats) LS.s('vb_dailyStats',data.dailyStats);
+      if(data.streak!=null) LS.s('vb_streak',data.streak);
+      if(data.nextIdx!=null) LS.s('vb_nextIdx',data.nextIdx);
+      if(data.learned)    LS.s('vb_learned',data.learned);
+      document.getElementById('sheetOv').classList.remove('open');
+      location.reload();
+    }catch(err){
+      alert(T('importError'));
+    }
+    e.target.value='';
+  };
+  reader.readAsText(file);
 });
 document.getElementById('resetBtn').addEventListener('click',()=>{
   if(confirm(T('resetVerbConfirm'))){
