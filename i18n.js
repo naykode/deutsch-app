@@ -47,7 +47,7 @@ en:{
   feedbackOk:'✓ Richtig!',
   feedbackErr:(a,n)=>`✗ Falsch — es heißt: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ Falsch — es bedeutet: „${e}"`,
-  maskLabel:'masc.', femLabel:'fem.', neutLabel:'neut.', madeBy:'Made by nayko · 2025',langChangeWarning:'Session is active — change language? Session stats will reset.',langLabel:'Language',
+  maskLabel:'masc.', femLabel:'fem.', neutLabel:'neut.', importBtn:'📥 Import progress (JSON)',importConfirm:'Import will replace current progress. Continue?',importError:'Invalid file. Use a JSON exported from this app.',madeBy:'Made by nayko · 2025',langChangeWarning:'Session is active — change language? Session stats will reset.',langLabel:'Language',
 },
 ar:{
   statMastered:'✅ محفوظ', statStreak:'🔥 أيام متتالية', statCorrect:'🎯 صحيح',
@@ -84,7 +84,7 @@ ar:{
   feedbackOk:'✓ صحيح!',
   feedbackErr:(a,n)=>`✗ خطأ — الصحيح „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ خطأ — المعنى „${e}"`,
-  maskLabel:'مذ.', femLabel:'مؤن.', neutLabel:'محايد.', madeBy:'صُنع بواسطة nayko · 2025',langChangeWarning:'الجلسة نشطة — هل تريد تغيير اللغة؟ ستُعاد إحصائيات الجلسة.',langLabel:'اللغة',
+  maskLabel:'مذ.', femLabel:'مؤن.', neutLabel:'محايد.', importBtn:'📥 استيراد التقدم (JSON)',importConfirm:'سيؤدي الاستيراد إلى استبدال تقدمك الحالي. هل تريد المتابعة؟',importError:'ملف غير صالح. استخدم ملف JSON تم تصديره من هذا التطبيق.',madeBy:'صُنع بواسطة nayko · 2025',langChangeWarning:'الجلسة نشطة — هل تريد تغيير اللغة؟ ستُعاد إحصائيات الجلسة.',langLabel:'اللغة',
 },
 tr:{
   statMastered:'✅ Ustalaştı', statStreak:'🔥 Seri', statCorrect:'🎯 Doğru',
@@ -121,7 +121,7 @@ tr:{
   feedbackOk:'✓ Doğru!',
   feedbackErr:(a,n)=>`✗ Yanlış — doğrusu „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ Yanlış — anlamı „${e}"`,
-  maskLabel:'erk.', femLabel:'diş.', neutLabel:'nötr.', madeBy:'nayko tarafından · 2025',langChangeWarning:'Oturum devam ediyor — dil değiştirilsin mi? Oturum istatistikleri sıfırlanacak.',langLabel:'Dil',
+  maskLabel:'erk.', femLabel:'diş.', neutLabel:'nötr.', importBtn:'📥 İlerlemeyi içe aktar (JSON)',importConfirm:'İçe aktarma mevcut ilerlemenin üzerine yazacak. Devam edilsin mi?',importError:'Geçersiz dosya. Bu uygulamadan dışa aktarılan JSON dosyasını kullanın.',madeBy:'nayko tarafından · 2025',langChangeWarning:'Oturum devam ediyor — dil değiştirilsin mi? Oturum istatistikleri sıfırlanacak.',langLabel:'Dil',
 },
 fa:{
   statMastered:'✅ مسلط', statStreak:'🔥 رگه', statCorrect:'🎯 صحیح',
@@ -158,7 +158,7 @@ fa:{
   feedbackOk:'✓ درست!',
   feedbackErr:(a,n)=>`✗ اشتباه — درست: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ اشتباه — معنی: „${e}"`,
-  maskLabel:'مذکر', femLabel:'مؤنث', neutLabel:'خنثی', madeBy:'ساخته nayko · 2025',langChangeWarning:'جلسه فعال است — زبان تغییر شود؟ آمار جلسه ریست می‌شود.',langLabel:'زبان',
+  maskLabel:'مذکر', femLabel:'مؤنث', neutLabel:'خنثی', importBtn:'📥 وارد کردن پیشرفت (JSON)',importConfirm:'وارد کردن، پیشرفت فعلی را جایگزین می‌کند. ادامه دهید؟',importError:'فایل نامعتبر است. از JSON صادر شده توسط این برنامه استفاده کنید.',madeBy:'ساخته nayko · 2025',langChangeWarning:'جلسه فعال است — زبان تغییر شود؟ آمار جلسه ریست می‌شود.',langLabel:'زبان',
 },
 ku:{
   statMastered:'✅ Serwerî', statStreak:'🔥 Xêz', statCorrect:'🎯 Rast e',
@@ -195,7 +195,7 @@ ku:{
   feedbackOk:'✓ Rast e!',
   feedbackErr:(a,n)=>`✗ Xelet — rast: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ Xelet — watê: „${e}"`,
-  maskLabel:'nêr.', femLabel:'mê.', neutLabel:'neut.', madeBy:'Çêkirî ji aliyê nayko · 2025',langChangeWarning:'Rûniştîn çalak e — ziman were guhertin? Statîstîkên rûniştinê were sifir kirin.',langLabel:'Ziman',
+  maskLabel:'nêr.', femLabel:'mê.', neutLabel:'neut.', importBtn:'📥 Pêşkeftinê bîne (JSON)',importConfirm:'Anekirin pêşkeftina niha dê biguheze. Berdewam bike?',importError:'Pelê ne derbasdar e. JSON-ê ji vê sepanê bikar bîne.',madeBy:'Çêkirî ji aliyê nayko · 2025',langChangeWarning:'Rûniştîn çalak e — ziman were guhertin? Statîstîkên rûniştinê were sifir kirin.',langLabel:'Ziman',
 },
 ps:{
   statMastered:'✅ ماسټر شوی', statStreak:'🔥 سټریک', statCorrect:'🎯 سمه ده',
@@ -232,7 +232,7 @@ ps:{
   feedbackOk:'✓ سم!',
   feedbackErr:(a,n)=>`✗ غلط — سم: „${a} ${n}"`,
   feedbackVerbErr:(e)=>`✗ غلط — معنا: „${e}"`,
-  maskLabel:'نارینه', femLabel:'ښځینه', neutLabel:'خنثی', madeBy:'د nayko لخوا جوړ شوی · 2025',langChangeWarning:'غونډه فعاله ده — ژبه بدله شي؟ د غونډې احصایې به بیا تنظیم شي.',langLabel:'ژبه',
+  maskLabel:'نارینه', femLabel:'ښځینه', neutLabel:'خنثی', importBtn:'📥 پرمختګ وارد کړئ (JSON)',importConfirm:'وارد کول به اوسني پرمختګ بدل کړي. دوام ورکړئ؟',importError:'ناسم فایل. د دې ایپ لخوا صادر شوی JSON وکاروئ.',madeBy:'د nayko لخوا جوړ شوی · 2025',langChangeWarning:'غونډه فعاله ده — ژبه بدله شي؟ د غونډې احصایې به بیا تنظیم شي.',langLabel:'ژبه',
 },
 };
 
