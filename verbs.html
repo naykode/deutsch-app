@@ -699,27 +699,31 @@ function recordAnswer(word,correct){
 //  STATS
 // ═══════════════════════════════════════
 function getDisplayStreak(){
-  const base=LS.g('vb_streak',0);
-  return base+((getDailyStats()[today()]?.correct||0)>=10?1:0);
+  // Use stored streak directly — display streak = saved value
+  return LS.g('vb_streak',0);
 }
 function getDisplayCorrect(){
   return Math.max(0,(getDailyStats()[today()]?.correct||0)-sesDisplayBase);
 }
 function getVocabStat(){
   if(!allVerbs.length)return{text:'—',lbl:'📚 Verbs'};
-  const byLevel={};LEVELS.forEach(l=>{byLevel[l]=allVerbs.filter(w=>w.level===l);});
-  const active=LEVELS.filter(l=>(byLevel[l]?.length||0)>0);
-  if(!active.length)return{text:'—',lbl:'📚 Verbs'};
-  const idx=LS.g('vb_nextIdx',0);let offset=0;
-  for(const lv of active){
-    const sz=byLevel[lv].length;
-    if(idx<offset+sz){
-      return{text:`${Math.max(0,idx-offset)}/${sz}`,lbl:`📚 ${lv} Verbs`};
+  // Find the current active level: first level not yet exhausted today
+  const byLevel={};
+  LEVELS.forEach(l=>{byLevel[l]=allVerbs.filter(w=>w.level===l).sort((a,b)=>a.id-b.id);});
+  for(const lv of LEVELS){
+    const sz=byLevel[lv]?.length||0;
+    if(!sz)continue;
+    const idx=LS.g(`vb_nextIdx_${lv}`,0);
+    // Show this level if we haven't fully exhausted it (or it's A1 which cycles)
+    if(lv==='A1'||idx<sz){
+      const display=lv==='A1'?(idx%sz):idx;
+      return{text:`${display}/${sz}`,lbl:`📚 ${lv} Verbs`};
     }
-    offset+=sz;
   }
-  const last=active[active.length-1];
-  return{text:`${byLevel[last].length}/${byLevel[last].length}`,lbl:`📚 ${last} ✓`};
+  // All levels exhausted — show B2 complete
+  const last=LEVELS[LEVELS.length-1];
+  const sz=byLevel[last]?.length||0;
+  return{text:`${sz}/${sz}`,lbl:`📚 ${last} ✓`};
 }
 function refreshStats(){
   const prog=getProgress();
@@ -1155,7 +1159,12 @@ document.getElementById('sheetOv').addEventListener('click',e=>{
 document.getElementById('exportBtn').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify({
     progress:getProgress(),mistakes:getMistakes(),dailyStats:getDailyStats(),
-    streak:LS.g('vb_streak',0),nextIdx:LS.g('vb_nextIdx',0),
+    streak:LS.g('vb_streak',0),
+    nextIdx:LS.g('vb_nextIdx',0),
+    nextIdx_A1:LS.g('vb_nextIdx_A1',0),
+    nextIdx_A2:LS.g('vb_nextIdx_A2',0),
+    nextIdx_B1:LS.g('vb_nextIdx_B1',0),
+    nextIdx_B2:LS.g('vb_nextIdx_B2',0),
     learned:LS.g('vb_learned',[]),exportedAt:new Date().toISOString()
   },null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -1180,8 +1189,12 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
       if(data.progress)   LS.s('vb_progress',data.progress);
       if(data.mistakes)   LS.s('vb_mistakes',data.mistakes);
       if(data.dailyStats) LS.s('vb_dailyStats',data.dailyStats);
-      if(data.streak!=null) LS.s('vb_streak',data.streak);
-      if(data.nextIdx!=null) LS.s('vb_nextIdx',data.nextIdx);
+      if(data.streak!=null)      LS.s('vb_streak',data.streak);
+      if(data.nextIdx!=null)     LS.s('vb_nextIdx',data.nextIdx);
+      if(data.nextIdx_A1!=null)  LS.s('vb_nextIdx_A1',data.nextIdx_A1);
+      if(data.nextIdx_A2!=null)  LS.s('vb_nextIdx_A2',data.nextIdx_A2);
+      if(data.nextIdx_B1!=null)  LS.s('vb_nextIdx_B1',data.nextIdx_B1);
+      if(data.nextIdx_B2!=null)  LS.s('vb_nextIdx_B2',data.nextIdx_B2);
       if(data.learned)    LS.s('vb_learned',data.learned);
       document.getElementById('sheetOv').classList.remove('open');
       location.reload();
