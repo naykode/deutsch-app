@@ -190,6 +190,70 @@ main{
 .mcq-btn.wrong  {background:var(--err-bg);border-color:var(--err-bd);color:var(--err);}
 .mcq-btn.dim    {opacity:.3;}
 
+/* ── ROUND INDICATOR ── */
+.round-indicator{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:.7rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:2px;
+}
+.round-dot{
+  width:22px;height:5px;border-radius:3px;background:var(--border);transition:background .3s;
+}
+.round-dot.active{background:var(--acc);}
+.round-dot.done{background:var(--ok);}
+
+/* ── FILL-IN-THE-BLANK INPUT ── */
+.fill-wrap{display:flex;flex-direction:column;gap:10px;width:100%;}
+.fill-sentence{
+  background:var(--card2);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:12px 14px;font-size:.95rem;font-weight:600;color:var(--ink);
+  line-height:1.7;text-align:center;
+}
+.fill-sentence .blank-slot{
+  display:inline-block;border-bottom:2.5px solid var(--acc);
+  min-width:80px;height:1.3em;vertical-align:bottom;margin:0 4px;
+}
+.fill-input-row{display:flex;gap:8px;align-items:stretch;}
+.fill-input{
+  flex:1;padding:13px 14px;
+  border:2px solid var(--border);border-radius:12px;
+  background:var(--card);color:var(--ink);
+  font-family:inherit;font-size:1rem;font-weight:600;
+  outline:none;transition:border-color .15s;
+  -webkit-autocorrect:off;autocorrect:off;
+  autocapitalize:off;spellcheck:false;
+}
+.fill-input:focus{border-color:var(--acc);}
+.fill-input.ok {border-color:var(--ok);background:var(--ok-bg);}
+.fill-input.err{border-color:var(--err);background:var(--err-bg);}
+.fill-check-btn{
+  padding:0 18px;border-radius:12px;
+  background:var(--acc);color:#fff;
+  font-size:.95rem;font-weight:700;font-family:inherit;
+  transition:opacity .15s,transform .1s;touch-action:manipulation;
+  white-space:nowrap;
+}
+.fill-check-btn:hover{opacity:.88;}
+.fill-check-btn:active{transform:scale(.97);}
+.fill-check-btn:disabled{opacity:.4;cursor:not-allowed;}
+.umlaut-bar{
+  display:flex;gap:6px;flex-wrap:wrap;
+}
+.uml-btn{
+  padding:7px 13px;border-radius:9px;
+  border:1px solid var(--border);background:var(--card2);
+  color:var(--ink);font-size:.9rem;font-weight:700;font-family:inherit;
+  transition:background .12s;touch-action:manipulation;
+}
+.uml-btn:hover,.uml-btn:active{background:var(--acc-bg);border-color:var(--acc-bd);color:var(--acc);}
+.fill-feedback{
+  text-align:center;padding:9px 14px;border-radius:var(--r-sm);
+  font-size:.92rem;font-weight:700;
+  animation:fadeUp .22s ease;
+}
+.fill-feedback.ok {background:var(--ok-bg);color:var(--ok);}
+.fill-feedback.err{background:var(--err-bg);color:var(--err);}
+
 /* ── NEXT BUTTON ── */
 .btn-next{
   width:100%;height:58px;
@@ -319,6 +383,13 @@ main{
       <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
     </div>
 
+    <!-- Round indicator -->
+    <div class="round-indicator" id="roundIndicator">
+      <div class="round-dot active" id="rdot1"></div>
+      <div class="round-dot" id="rdot2"></div>
+      <span id="roundLabel">Round 1 — Choose</span>
+    </div>
+
     <!-- Verb Card -->
     <div class="verb-card" id="verbCard">
       <div class="card-stripe"></div>
@@ -345,11 +416,33 @@ main{
       </div>
     </div>
 
-    <!-- ACTION: MCQ buttons ↔ Weiter (same slot) -->
+    <!-- ACTION: MCQ buttons ↔ Fill-in-blank ↔ Weiter (same slot) -->
     <div id="actionArea">
+      <!-- Round 1: MCQ -->
       <div class="mcq-grid" id="mcqGrid">
         <!-- buttons generated dynamically -->
       </div>
+      <!-- Round 2: Fill-in-the-blank -->
+      <div class="fill-wrap hidden" id="fillWrap">
+        <div class="fill-sentence" id="fillSentence"></div>
+        <div class="umlaut-bar">
+          <button class="uml-btn" data-char="ä">ä</button>
+          <button class="uml-btn" data-char="ö">ö</button>
+          <button class="uml-btn" data-char="ü">ü</button>
+          <button class="uml-btn" data-char="ß">ß</button>
+          <button class="uml-btn" data-char="Ä">Ä</button>
+          <button class="uml-btn" data-char="Ö">Ö</button>
+          <button class="uml-btn" data-char="Ü">Ü</button>
+        </div>
+        <div class="fill-input-row">
+          <input class="fill-input" id="fillInput" type="text"
+            placeholder="Type the verb…"
+            autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="fill-check-btn" id="fillCheckBtn">✓</button>
+        </div>
+        <div class="fill-feedback hidden" id="fillFeedback"></div>
+      </div>
+      <!-- Weiter (both rounds) -->
       <button class="btn-next hidden" id="nextBtn" data-i18n="nextBtn">Weiter →</button>
     </div>
 
@@ -411,7 +504,8 @@ main{
 const SUPA_URL  = 'https://vloafmvpmghhncwmnpnx.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsb2FmbXZwbWdoaG5jd21ucG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTI3NjAsImV4cCI6MjA5MjkyODc2MH0.iUtPE1fVHymhPFHbwKPnxRSzXTzcYCXSnBKpXFu5ty8';
 const TABLE     = 'verbs'; // new clean verbs table
-const DAILY_N   = 20;
+// Daily quota per level
+const DAILY_QUOTA = {A1:20, A2:10, B1:10, B2:10};
 // ── Language content helpers ──
 const LANG_MEANING={en:'english',ar:'arabic',tr:'turkish',fa:'farsi',ku:'kurdish',ps:'pashto'};
 const LANG_EXAMPLE={en:'example_en',ar:'example_ar',tr:'example_tr',fa:'example_fa',ku:'example_ku',ps:'example_ps'};
@@ -419,7 +513,7 @@ function getLang(){return window.i18n?window.i18n.detect():'en';}
 function getMeaning(w){const c=LANG_MEANING[getLang()]||'english';return w[c]||w.english||'';}
 function getExample(w){const c=LANG_EXAMPLE[getLang()]||'example_en';return w[c]||w.example_en||'';}
 const MASTERY_N = 3;
-const LEVELS    = ['A1','A2','B1'];
+const LEVELS    = ['A1','A2','B1','B2'];
 const MCQ_N     = 4;    // number of choices
 // Separate localStorage namespace from nouns (prefix vb_)
 
@@ -432,6 +526,9 @@ let audioEnabled=true,deVoice=null;
 let sesCorrect=0,sesWrong=0,sesMistakeIds=[],isReviewSes=false;
 window.sessionActive=()=>(sesCorrect+sesWrong)>0;
 let sesDisplayBase=0;
+// Round system: 1=MCQ, 2=fill-in-the-blank
+let currentRound=1;
+let round1Correct=false; // track R1 result to carry into R2 scoring
 
 const {createClient}=window.supabase;
 const db=createClient(SUPA_URL,SUPA_KEY);
@@ -460,7 +557,7 @@ async function fetchAllVerbs(){
   const PAGE=1000;let all=[],from=0;
   while(true){
     const{data,error}=await db.from(TABLE)
-      .select('id,word,english,example_de,example_en,level,separable,verb_type,topic,arabic,example_ar,turkish,example_tr,farsi,example_fa,kurdish,example_ku,pashto,example_ps')
+      .select('id,word,english,example_de,example_en,example_verb,level,separable,verb_type,topic,arabic,example_ar,turkish,example_tr,farsi,example_fa,kurdish,example_ku,pashto,example_ps')
       .not('word','is',null)
       .not('english','is',null)
       .order('id',{ascending:true})
@@ -517,9 +614,9 @@ function buildQueue(){
   const prog=getProgress();
   const mistakeIds=getMistakes()[ydStr()]||[];
   let mistakeWords=mistakeIds.map(id=>wm[id]).filter(w=>w&&!prog[w.id]?.mastered);
-  let newWords=[];
-  if(mistakeWords.length<DAILY_N) newWords=pickNewWords(DAILY_N-mistakeWords.length);
-  else mistakeWords=mistakeWords.slice(0,DAILY_N*2);
+  const newWords=pickNewWords();
+  const totalQuota=Object.values(DAILY_QUOTA).reduce((a,b)=>a+b,0);
+  if(mistakeWords.length>totalQuota) mistakeWords=mistakeWords.slice(0,totalQuota);
   const learned=new Set(LS.g('vb_learned',[]));
   newWords.forEach(w=>learned.add(w.id));
   LS.s('vb_learned',[...learned]);
@@ -532,12 +629,43 @@ function buildWeeklyReview(t){
   todayQueue=shuffle(LS.g('vb_learned',[]).map(id=>wm[id]).filter(Boolean));
   queueIndex=0;LS.s('vb_qDate',t);LS.s('vb_queue',todayQueue.map(w=>w.id));LS.s('vb_qi',0);
 }
-function pickNewWords(n){
-  let idx=LS.g('vb_nextIdx',0);const prog=getProgress();const res=[];
-  while(res.length<n&&idx<allVerbs.length){
-    if(!prog[allVerbs[idx].id]?.mastered)res.push(allVerbs[idx]);idx++;
+function pickNewWords(){
+  const prog=getProgress();
+  const res=[];
+  // Build per-level pools sorted by id
+  const byLevel={};
+  LEVELS.forEach(lv=>{byLevel[lv]=allVerbs.filter(w=>w.level===lv);});
+
+  for(const lv of LEVELS){
+    const quota=DAILY_QUOTA[lv]||10;
+    const pool=byLevel[lv];
+    if(!pool.length) continue;
+
+    // Get the current index pointer for this level
+    const idxKey=`vb_nextIdx_${lv}`;
+    let idx=LS.g(idxKey,0);
+
+    // A1 special: if we've exhausted A1, cycle back from the start
+    if(lv==='A1' && idx>=pool.length){
+      idx=0;
+      LS.s(idxKey,0);
+    }
+
+    let picked=0;
+    let loopStart=idx;
+    while(picked<quota){
+      if(idx>=pool.length){
+        // A2/B1/B2: stop when exhausted (no cycle)
+        break;
+      }
+      const w=pool[idx];idx++;
+      if(!prog[w.id]?.mastered){res.push(w);picked++;}
+      // safety: avoid infinite loop if all mastered
+      if(idx===loopStart) break;
+    }
+    LS.s(idxKey,idx);
   }
-  LS.s('vb_nextIdx',idx);return res;
+  return res;
 }
 function updateStreak(t){
   const ds=getDailyStats();const ydc=ds[ydStr()]?.correct||0;
@@ -615,10 +743,27 @@ function showScreen(id){
     .forEach(s=>document.getElementById(s).classList.toggle('hidden',s!==id));
 }
 
+function updateRoundUI(round){
+  const dot1=document.getElementById('rdot1');
+  const dot2=document.getElementById('rdot2');
+  const lbl=document.getElementById('roundLabel');
+  if(round===1){
+    dot1.className='round-dot active';
+    dot2.className='round-dot';
+    lbl.textContent='Round 1 — Choose';
+  }else{
+    dot1.className='round-dot done';
+    dot2.className='round-dot active';
+    lbl.textContent='Round 2 — Type it';
+  }
+}
+
 function showWord(){
   if(queueIndex>=todayQueue.length){endSession();return;}
   const word=todayQueue[queueIndex];
   answered=false;
+  currentRound=1;
+  round1Correct=false;
   currentChoices=generateChoices(word);
 
   // Reset card
@@ -630,11 +775,10 @@ function showWord(){
   const sb=document.getElementById('sepBadge');
   word.separable?sb.classList.remove('hidden'):sb.classList.add('hidden');
 
-  // Example hint with blank
+  // Example hint — show only if example_verb exists (has blank)
   const exHint=document.getElementById('exHint');
-  if(word.example_de){
-    // Replace ___ with a visual blank underline
-    const html=(word.example_de||'').replace('___','<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
+  if(word.example_verb){
+    const html=(word.example_verb||'').replace('___','<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
     exHint.innerHTML=html;
     exHint.classList.remove('hidden');
   }else{
@@ -642,6 +786,9 @@ function showWord(){
   }
 
   document.getElementById('feedbackArea').classList.add('hidden');
+
+  // Round indicator
+  updateRoundUI(1);
 
   // Render MCQ buttons
   const grid=document.getElementById('mcqGrid');
@@ -656,13 +803,54 @@ function showWord(){
     grid.appendChild(btn);
   });
 
-  // Show buttons, hide Weiter + example section
+  // Show MCQ, hide fill + Weiter + example section
   document.getElementById('mcqGrid').classList.remove('hidden');
+  document.getElementById('fillWrap').classList.add('hidden');
   document.getElementById('nextBtn').classList.add('hidden');
   document.getElementById('exSection').classList.add('hidden');
 
   showScreen('screen-practice');
   refreshStats();
+}
+
+function showRound2(word){
+  currentRound=2;
+  answered=false;
+  updateRoundUI(2);
+
+  // Reset card stripe
+  document.getElementById('verbCard').className='verb-card';
+
+  // Hide example hint (will show in fill sentence)
+  document.getElementById('exHint').classList.add('hidden');
+  document.getElementById('feedbackArea').classList.add('hidden');
+
+  // Build fill sentence
+  const fillSentence=document.getElementById('fillSentence');
+  if(word.example_verb){
+    fillSentence.innerHTML=(word.example_verb).replace(
+      '___','<span class="blank-slot">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'
+    );
+  }else{
+    // Fallback: no example_verb — skip Round 2
+    advanceToNext();return;
+  }
+
+  // Reset input
+  const inp=document.getElementById('fillInput');
+  inp.value='';
+  inp.className='fill-input';
+  document.getElementById('fillFeedback').classList.add('hidden');
+  document.getElementById('fillCheckBtn').disabled=false;
+
+  // Show fill, hide MCQ + Weiter
+  document.getElementById('mcqGrid').classList.add('hidden');
+  document.getElementById('fillWrap').classList.remove('hidden');
+  document.getElementById('nextBtn').classList.add('hidden');
+  document.getElementById('exSection').classList.add('hidden');
+
+  // Auto-focus input
+  setTimeout(()=>inp.focus(),120);
 }
 
 // ═══════════════════════════════════════
@@ -693,6 +881,9 @@ function handleAnswer(chosenId,correctId){
     else                             btn.classList.add('dim');
   });
 
+  // Track round 1 result
+  round1Correct=correct;
+
   // Feedback inside card
   const bn=document.getElementById('fbBanner');
   bn.className='fb-banner '+(correct?'ok':'err');
@@ -703,11 +894,13 @@ function handleAnswer(chosenId,correctId){
   // Hide MCQ grid, show Weiter
   document.getElementById('mcqGrid').classList.add('hidden');
   document.getElementById('nextBtn').classList.remove('hidden');
+  // Change Weiter label to indicate Round 2 is coming
+  const hasR2=!!word.example_verb;
+  document.getElementById('nextBtn').textContent=hasR2?'Round 2 →':'Weiter →';
 
-  // Example section below Weiter
+  // Example section below Weiter (only show full example after MCQ)
   const exS=document.getElementById('exSection');
   if(word.example_de||word.example_en){
-    // Fill the blank with the verb (infinitive, italic)
     const filled=(word.example_de||'').replace(
       '___',`<strong>${word.example_verb||word.word}</strong>`
     );
@@ -721,7 +914,97 @@ function handleAnswer(chosenId,correctId){
   refreshStats();
 }
 
-function advance(){queueIndex++;LS.s('vb_qi',queueIndex);showWord();}
+function handleFillAnswer(){
+  const word=todayQueue[queueIndex];
+  if(!word||answered)return;
+  const inp=document.getElementById('fillInput');
+  const userVal=inp.value.trim().toLowerCase();
+  // Extract correct answer from example_verb: the word that replaced ___
+  // We find it by comparing example_de (full) vs example_verb (with ___)
+  // Correct answer = the conjugated verb form from example_de at the blank position
+  const correctRaw=getCorrectFillAnswer(word);
+  const correct=userVal===correctRaw.toLowerCase();
+
+  answered=true;
+  inp.className='fill-input '+(correct?'ok':'err');
+  document.getElementById('fillCheckBtn').disabled=true;
+
+  // Flash
+  const fl=document.getElementById('flashEl');
+  fl.className='flash '+(correct?'g':'r')+' on';
+  setTimeout(()=>fl.className='flash',280);
+
+  // Card stripe
+  document.getElementById('verbCard').classList.add(correct?'correct':'wrong');
+
+  // Feedback
+  const fb=document.getElementById('fillFeedback');
+  fb.className='fill-feedback '+(correct?'ok':'err');
+  fb.textContent=correct?'✓ Correct!':'✗ Answer: '+correctRaw;
+  fb.classList.remove('hidden');
+
+  // Record: only record wrong if R1 was also wrong (avoid double-penalizing)
+  // For mastery: both rounds must be correct
+  recordFillAnswer(word, correct);
+
+  // Show Weiter
+  document.getElementById('nextBtn').textContent='Weiter →';
+  document.getElementById('nextBtn').classList.remove('hidden');
+
+  refreshStats();
+}
+
+function getCorrectFillAnswer(word){
+  // example_verb has ___ where the verb goes
+  // example_de has the full sentence
+  // Extract what sits at the ___ position in example_de
+  if(!word.example_verb||!word.example_de)return word.word;
+  const blankIdx=word.example_verb.indexOf('___');
+  if(blankIdx<0)return word.word;
+  const before=word.example_verb.slice(0,blankIdx);
+  const after=word.example_verb.slice(blankIdx+3);
+  // Match: everything in example_de between `before` and `after`
+  const escaped=(s)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re=new RegExp(escaped(before)+'(.+?)'+escaped(after));
+  const m=word.example_de.match(re);
+  if(m&&m[1])return m[1].trim();
+  return word.word;
+}
+
+function recordFillAnswer(word, correct){
+  // Only adjust mastery: if both rounds correct → full credit; if R2 wrong → reset streak
+  const t=today();const prog=getProgress();
+  const p=prog[word.id]||{streak:0,correct:0,mastered:false};
+  if(correct&&round1Correct){
+    // Both rounds correct — full mastery credit (already counted R1 correct above)
+    // streak already incremented in recordAnswer; just ensure mastered check
+    if(p.streak>=MASTERY_N)p.mastered=true;
+  }else if(!correct){
+    // R2 wrong → reset streak, record mistake
+    p.streak=0;
+    if(!sesMistakeIds.includes(word.id))sesMistakeIds.push(word.id);
+    const m=getMistakes();m[t]=m[t]||[];
+    if(!m[t].includes(word.id))m[t].push(word.id);saveMistakes(m);
+    // Extra wrong count for stats
+    sesWrong++;
+  }
+  p.lastSeen=t;prog[word.id]=p;saveProgress(prog);
+}
+
+function advanceToNext(){queueIndex++;LS.s('vb_qi',queueIndex);showWord();}
+
+function advance(){
+  if(currentRound===1){
+    const word=todayQueue[queueIndex];
+    if(word&&word.example_verb){
+      showRound2(word);
+    }else{
+      advanceToNext();
+    }
+  }else{
+    advanceToNext();
+  }
+}
 
 // ═══════════════════════════════════════
 //  END SESSION
@@ -912,15 +1195,37 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
 document.getElementById('resetBtn').addEventListener('click',()=>{
   if(confirm(T('resetVerbConfirm'))){
     ['vb_progress','vb_mistakes','vb_dailyStats','vb_streak','vb_nextIdx',
+     'vb_nextIdx_A1','vb_nextIdx_A2','vb_nextIdx_B1','vb_nextIdx_B2',
      'vb_weekStart','vb_learned','vb_qDate','vb_queue','vb_qi'].forEach(k=>LS.d(k));
     document.getElementById('sheetOv').classList.remove('open');
     location.reload();
   }
 });
 
+// Umlaut buttons
+document.querySelectorAll('.uml-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const inp=document.getElementById('fillInput');
+    const pos=inp.selectionStart||inp.value.length;
+    const val=inp.value;
+    inp.value=val.slice(0,pos)+btn.dataset.char+val.slice(pos);
+    inp.focus();
+    inp.setSelectionRange(pos+1,pos+1);
+  });
+});
+
+// Fill check button
+document.getElementById('fillCheckBtn').addEventListener('click',handleFillAnswer);
+
+// Fill input: Enter key to check
+document.getElementById('fillInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();if(!answered)handleFillAnswer();}
+});
+
 // Keyboard: 1-4 for choices, Space/Enter for next
 document.addEventListener('keydown',e=>{
   if(document.getElementById('sheetOv').classList.contains('open'))return;
+  if(document.activeElement===document.getElementById('fillInput'))return;
   if(!answered){
     const n=parseInt(e.key);
     if(n>=1&&n<=MCQ_N){
