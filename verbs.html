@@ -668,9 +668,19 @@ function pickNewWords(){
   return res;
 }
 function updateStreak(t){
-  const ds=getDailyStats();const ydc=ds[ydStr()]?.correct||0;
+  const ds=getDailyStats();
+  const ydc=ds[ydStr()]?.correct||0;
   let s=LS.g('vb_streak',0);
-  if(ydc>=10)s++;else if(Object.keys(ds).length>0)s=0;
+  // Only reset streak if we have yesterday's data AND it was insufficient
+  // If yesterday has no record at all, preserve current streak (avoids deploy wipe)
+  const hadYesterday=ydStr()in ds;
+  if(hadYesterday){
+    if(ydc>=10)s++;else s=0;
+  }else if(Object.keys(ds).length>1){
+    // Has older data but not yesterday → streak broken
+    s=0;
+  }
+  // else: no history at all or only today → keep whatever streak is stored
   LS.s('vb_streak',s);
 }
 const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;};
@@ -1099,6 +1109,35 @@ function speak(text){
 }
 
 // ═══════════════════════════════════════
+//  MIGRATION — old single vb_nextIdx → per-level keys
+// ═══════════════════════════════════════
+function migrateIndexKeys(){
+  // Only run if old key exists AND new keys don't yet exist
+  const oldIdx=LS.g('vb_nextIdx',null);
+  if(oldIdx===null)return; // already clean
+  const a1Done=LS.g('vb_nextIdx_A1',null);
+  if(a1Done!==null)return; // already migrated
+
+  if(!allVerbs.length)return;
+  // Reconstruct per-level idx from old flat index
+  // Old order: all A1 sorted by id, then A2, B1 (B2 wasn't included before)
+  const byLevel={};
+  LEVELS.forEach(lv=>{byLevel[lv]=allVerbs.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);});
+  let remaining=oldIdx;
+  for(const lv of ['A1','A2','B1']){
+    const sz=byLevel[lv]?.length||0;
+    if(remaining<=0){LS.s(`vb_nextIdx_${lv}`,0);}
+    else if(remaining>=sz){LS.s(`vb_nextIdx_${lv}`,sz);remaining-=sz;}
+    else{LS.s(`vb_nextIdx_${lv}`,remaining);remaining=0;}
+  }
+  // B2 starts fresh (was never in old system)
+  LS.s('vb_nextIdx_B2',0);
+  // Remove old key to avoid re-running
+  LS.d('vb_nextIdx');
+  console.log('Migrated vb_nextIdx to per-level keys');
+}
+
+// ═══════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════
 async function init(){
@@ -1110,6 +1149,9 @@ async function init(){
   document.getElementById('audioBtn').textContent=audioEnabled?'🔊':'🔇';
   try{
     allVerbs=await fetchAllVerbs();
+    migrateIndexKeys(); // ← run migration before buildQueue
+    // Fix sesDisplayBase: set to current today correct so Correct counter starts from 0
+    sesDisplayBase=getDailyStats()[today()]?.correct||0;
     buildQueue();
     document.getElementById('screen-loading').classList.add('hidden');
     showWord();
