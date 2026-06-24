@@ -67,7 +67,27 @@ header{
 .back-link:hover{background:var(--border);color:var(--ink);}
 .logo{font-family:'Playfair Display',serif;font-size:1.45rem;font-weight:900;letter-spacing:-.02em;}
 .logo em{font-style:normal;color:var(--acc);}
-.hdr-btns{display:flex;gap:6px;}
+.hdr-btns{display:flex;gap:6px;align-items:center;}
+/* ── LEVEL SELECTOR ── */
+.level-select{
+  height:38px;padding:0 8px;
+  border:1px solid var(--border);border-radius:var(--r-sm);
+  background:var(--card2);color:var(--ink);
+  font-family:inherit;font-size:.82rem;font-weight:700;
+  cursor:pointer;outline:none;
+  transition:border-color .15s,background .15s;
+  -webkit-appearance:none;appearance:none;
+  /* Custom arrow */
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23868e96'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 7px center;
+  padding-right:22px;
+}
+.level-select:focus{border-color:var(--acc);}
+[data-dark] .level-select{
+  background-color:var(--card2);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23adb5bd'/%3E%3C/svg%3E");
+}
 .hdr-btn{
   width:38px;height:38px;border-radius:var(--r-sm);
   border:1px solid var(--border);
@@ -348,6 +368,12 @@ main{
     <div class="logo">Verb<em>en</em></div>
   </div>
   <div class="hdr-btns">
+    <select class="level-select" id="levelSelect" title="Select level">
+      <option value="A1">A1</option>
+      <option value="A2">A2</option>
+      <option value="B1">B1</option>
+      <option value="B2">B2</option>
+    </select>
     <button class="hdr-btn" id="darkBtn">🌙</button>
     <button class="hdr-btn" id="audioBtn">🔊</button>
     <button class="hdr-btn" id="settingsBtn">⚙️</button>
@@ -601,70 +627,67 @@ function isWeeklyReview(){
 }
 function buildQueue(){
   if(isReviewSes)return;
-  const t=today(),saved=LS.g('vb_qDate',null);
+  const t=today();
+  const lv=getActiveLevel();
+  const qDateKey=`vb_qDate_${lv}`;
+  const saved=LS.g(qDateKey,null);
   if(saved===t){
+    // Today's queue for this level already built — restore it
     const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
-    todayQueue=LS.g('vb_queue',[]).map(id=>wm[id]).filter(Boolean);
-    queueIndex=LS.g('vb_qi',0);return;
+    const savedQueue=LS.g(`vb_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean);
+    if(savedQueue.length){
+      todayQueue=savedQueue;
+      queueIndex=LS.g(`vb_qi_${lv}`,0);
+      return;
+    }
   }
   updateStreak(t);
   if(!LS.g('vb_weekStart',null))LS.s('vb_weekStart',t);
   if(isWeeklyReview()){buildWeeklyReview(t);return;}
+
   const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
   const prog=getProgress();
   const mistakeIds=getMistakes()[ydStr()]||[];
-  let mistakeWords=mistakeIds.map(id=>wm[id]).filter(w=>w&&!prog[w.id]?.mastered);
+  // Only include mistakes from the active level
+  let mistakeWords=mistakeIds.map(id=>wm[id]).filter(w=>w&&w.level===lv&&!prog[w.id]?.mastered);
+  const quota=DAILY_QUOTA[lv]||10;
+  if(mistakeWords.length>quota) mistakeWords=mistakeWords.slice(0,quota);
   const newWords=pickNewWords();
-  const totalQuota=Object.values(DAILY_QUOTA).reduce((a,b)=>a+b,0);
-  if(mistakeWords.length>totalQuota) mistakeWords=mistakeWords.slice(0,totalQuota);
   const learned=new Set(LS.g('vb_learned',[]));
   newWords.forEach(w=>learned.add(w.id));
   LS.s('vb_learned',[...learned]);
   todayQueue=shuffle([...mistakeWords,...newWords]);
   queueIndex=0;
-  LS.s('vb_qDate',t);LS.s('vb_queue',todayQueue.map(w=>w.id));LS.s('vb_qi',0);
+  LS.s(qDateKey,t);
+  LS.s(`vb_queue_${lv}`,todayQueue.map(w=>w.id));
+  LS.s(`vb_qi_${lv}`,0);
 }
 function buildWeeklyReview(t){
   const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
   todayQueue=shuffle(LS.g('vb_learned',[]).map(id=>wm[id]).filter(Boolean));
   queueIndex=0;LS.s('vb_qDate',t);LS.s('vb_queue',todayQueue.map(w=>w.id));LS.s('vb_qi',0);
 }
+function getActiveLevel(){return LS.g('vb_activeLevel','A1');}
+
 function pickNewWords(){
   const prog=getProgress();
+  const lv=getActiveLevel();
+  const quota=DAILY_QUOTA[lv]||10;
+  const pool=allVerbs.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);
+  if(!pool.length)return[];
+
+  const idxKey=`vb_nextIdx_${lv}`;
+  let idx=LS.g(idxKey,0);
+
+  // A1: cycle back when exhausted
+  if(lv==='A1'&&idx>=pool.length){idx=0;LS.s(idxKey,0);}
+
   const res=[];
-  // Build per-level pools sorted by id
-  const byLevel={};
-  LEVELS.forEach(lv=>{byLevel[lv]=allVerbs.filter(w=>w.level===lv);});
-
-  for(const lv of LEVELS){
-    const quota=DAILY_QUOTA[lv]||10;
-    const pool=byLevel[lv];
-    if(!pool.length) continue;
-
-    // Get the current index pointer for this level
-    const idxKey=`vb_nextIdx_${lv}`;
-    let idx=LS.g(idxKey,0);
-
-    // A1 special: if we've exhausted A1, cycle back from the start
-    if(lv==='A1' && idx>=pool.length){
-      idx=0;
-      LS.s(idxKey,0);
-    }
-
-    let picked=0;
-    let loopStart=idx;
-    while(picked<quota){
-      if(idx>=pool.length){
-        // A2/B1/B2: stop when exhausted (no cycle)
-        break;
-      }
-      const w=pool[idx];idx++;
-      if(!prog[w.id]?.mastered){res.push(w);picked++;}
-      // safety: avoid infinite loop if all mastered
-      if(idx===loopStart) break;
-    }
-    LS.s(idxKey,idx);
+  while(res.length<quota&&idx<pool.length){
+    const w=pool[idx];idx++;
+    if(!prog[w.id]?.mastered)res.push(w);
   }
+  LS.s(idxKey,idx);
   return res;
 }
 function updateStreak(t){
@@ -717,23 +740,13 @@ function getDisplayCorrect(){
 }
 function getVocabStat(){
   if(!allVerbs.length)return{text:'—',lbl:'📚 Verbs'};
-  // Find the current active level: first level not yet exhausted today
-  const byLevel={};
-  LEVELS.forEach(l=>{byLevel[l]=allVerbs.filter(w=>w.level===l).sort((a,b)=>a.id-b.id);});
-  for(const lv of LEVELS){
-    const sz=byLevel[lv]?.length||0;
-    if(!sz)continue;
-    const idx=LS.g(`vb_nextIdx_${lv}`,0);
-    // Show this level if we haven't fully exhausted it (or it's A1 which cycles)
-    if(lv==='A1'||idx<sz){
-      const display=lv==='A1'?(idx%sz):idx;
-      return{text:`${display}/${sz}`,lbl:`📚 ${lv} Verbs`};
-    }
-  }
-  // All levels exhausted — show B2 complete
-  const last=LEVELS[LEVELS.length-1];
-  const sz=byLevel[last]?.length||0;
-  return{text:`${sz}/${sz}`,lbl:`📚 ${last} ✓`};
+  const lv=getActiveLevel();
+  const pool=allVerbs.filter(w=>w.level===lv);
+  const sz=pool.length;
+  if(!sz)return{text:'—',lbl:`📚 ${lv} Verbs`};
+  const idx=LS.g(`vb_nextIdx_${lv}`,0);
+  const display=lv==='A1'?(idx%sz)||0:Math.min(idx,sz);
+  return{text:`${display}/${sz}`,lbl:`📚 ${lv} Verbs`};
 }
 function refreshStats(){
   const prog=getProgress();
@@ -1005,7 +1018,12 @@ function recordFillAnswer(word, correct){
   p.lastSeen=t;prog[word.id]=p;saveProgress(prog);
 }
 
-function advanceToNext(){queueIndex++;LS.s('vb_qi',queueIndex);showWord();}
+function advanceToNext(){
+  queueIndex++;
+  const lv=getActiveLevel();
+  LS.s(`vb_qi_${lv}`,queueIndex);
+  showWord();
+}
 
 function advance(){
   if(currentRound===1){
@@ -1080,8 +1098,9 @@ function startMistakeReview(){
   isReviewSes=true;answered=false;showWord();
 }
 function startNochmal(){
+  const lv=getActiveLevel();
   const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
-  todayQueue=shuffle(LS.g('vb_queue',[]).map(id=>wm[id]).filter(Boolean));
+  todayQueue=shuffle(LS.g(`vb_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean));
   queueIndex=0;sesCorrect=0;sesWrong=0;sesMistakeIds=[];
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
   isReviewSes=false;answered=false;showWord();
@@ -1106,6 +1125,16 @@ function speak(text){
     window.speechSynthesis.speak(u);
   };
   setTimeout(doSpeak,50);
+}
+
+function switchLevel(newLv){
+  if(!LEVELS.includes(newLv))return;
+  LS.s('vb_activeLevel',newLv);
+  // Reset session state
+  sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;answered=false;
+  sesDisplayBase=getDailyStats()[today()]?.correct||0;
+  buildQueue();
+  showWord();
 }
 
 // ═══════════════════════════════════════
@@ -1142,15 +1171,17 @@ function migrateIndexKeys(){
 // ═══════════════════════════════════════
 async function init(){
   if(window.i18n)i18n.apply();
-  const dark=LS.g('ap_dark',false); // share dark mode pref with nouns page
+  const dark=LS.g('ap_dark',false);
   if(dark)document.body.setAttribute('data-dark','');
   document.getElementById('darkBtn').textContent=dark?'☀️':'🌙';
   audioEnabled=LS.g('ap_audio',true);
   document.getElementById('audioBtn').textContent=audioEnabled?'🔊':'🔇';
+  // Init level selector
+  const savedLv=LS.g('vb_activeLevel','A1');
+  document.getElementById('levelSelect').value=savedLv;
   try{
     allVerbs=await fetchAllVerbs();
-    migrateIndexKeys(); // ← run migration before buildQueue
-    // Fix sesDisplayBase: set to current today correct so Correct counter starts from 0
+    migrateIndexKeys();
     sesDisplayBase=getDailyStats()[today()]?.correct||0;
     buildQueue();
     document.getElementById('screen-loading').classList.add('hidden');
@@ -1179,6 +1210,10 @@ document.getElementById('doneTodayBtn').addEventListener('click',()=>{
   document.getElementById('doneActions').innerHTML=
     '<p style="text-align:center;color:var(--ink3);font-size:.9rem;font-weight:600;padding:10px 0">✓ See you tomorrow! 👋</p>';
 });
+document.getElementById('levelSelect').addEventListener('change',(e)=>{
+  switchLevel(e.target.value);
+});
+
 document.getElementById('darkBtn').addEventListener('click',()=>{
   const was=document.body.hasAttribute('data-dark');
   document.body.toggleAttribute('data-dark');
@@ -1202,7 +1237,7 @@ document.getElementById('exportBtn').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify({
     progress:getProgress(),mistakes:getMistakes(),dailyStats:getDailyStats(),
     streak:LS.g('vb_streak',0),
-    nextIdx:LS.g('vb_nextIdx',0),
+    activeLevel:getActiveLevel(),
     nextIdx_A1:LS.g('vb_nextIdx_A1',0),
     nextIdx_A2:LS.g('vb_nextIdx_A2',0),
     nextIdx_B1:LS.g('vb_nextIdx_B1',0),
@@ -1232,7 +1267,7 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
       if(data.mistakes)   LS.s('vb_mistakes',data.mistakes);
       if(data.dailyStats) LS.s('vb_dailyStats',data.dailyStats);
       if(data.streak!=null)      LS.s('vb_streak',data.streak);
-      if(data.nextIdx!=null)     LS.s('vb_nextIdx',data.nextIdx);
+      if(data.activeLevel)       LS.s('vb_activeLevel',data.activeLevel);
       if(data.nextIdx_A1!=null)  LS.s('vb_nextIdx_A1',data.nextIdx_A1);
       if(data.nextIdx_A2!=null)  LS.s('vb_nextIdx_A2',data.nextIdx_A2);
       if(data.nextIdx_B1!=null)  LS.s('vb_nextIdx_B1',data.nextIdx_B1);
@@ -1251,7 +1286,11 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
   if(confirm(T('resetVerbConfirm'))){
     ['vb_progress','vb_mistakes','vb_dailyStats','vb_streak','vb_nextIdx',
      'vb_nextIdx_A1','vb_nextIdx_A2','vb_nextIdx_B1','vb_nextIdx_B2',
-     'vb_weekStart','vb_learned','vb_qDate','vb_queue','vb_qi'].forEach(k=>LS.d(k));
+     'vb_qDate_A1','vb_qDate_A2','vb_qDate_B1','vb_qDate_B2',
+     'vb_queue_A1','vb_queue_A2','vb_queue_B1','vb_queue_B2',
+     'vb_qi_A1','vb_qi_A2','vb_qi_B1','vb_qi_B2',
+     'vb_activeLevel','vb_weekStart','vb_learned',
+     'vb_qDate','vb_queue','vb_qi'].forEach(k=>LS.d(k));
     document.getElementById('sheetOv').classList.remove('open');
     location.reload();
   }
