@@ -679,32 +679,61 @@ function pickNewWords(){
   const idxKey=`vb_nextIdx_${lv}`;
   let idx=LS.g(idxKey,0);
 
-  // A1: cycle back when exhausted
-  if(lv==='A1'&&idx>=pool.length){idx=0;LS.s(idxKey,0);}
+  // All levels: cycle back when exhausted
+  if(idx>=pool.length){idx=0;LS.s(idxKey,0);}
 
   const res=[];
-  while(res.length<quota&&idx<pool.length){
+  let looped=false;
+  const startIdx=idx;
+  while(res.length<quota){
+    if(idx>=pool.length){
+      if(looped)break; // avoid infinite loop
+      idx=0;looped=true;
+    }
+    if(looped&&idx>=startIdx)break; // full circle done
     const w=pool[idx];idx++;
-    if(!prog[w.id]?.mastered)res.push(w);
+    // A1: include mastered words too (for cycling review)
+    // A2/B1/B2: skip mastered
+    if(lv==='A1'||!prog[w.id]?.mastered)res.push(w);
   }
   LS.s(idxKey,idx);
   return res;
 }
 function updateStreak(t){
+  // Run once per day — guard with vb_streakDate
+  const lastStreakDate=LS.g('vb_streakDate',null);
+  if(lastStreakDate===t)return;
   const ds=getDailyStats();
   const ydc=ds[ydStr()]?.correct||0;
   let s=LS.g('vb_streak',0);
-  // Only reset streak if we have yesterday's data AND it was insufficient
-  // If yesterday has no record at all, preserve current streak (avoids deploy wipe)
   const hadYesterday=ydStr()in ds;
+  // Threshold: minimum 10 correct yesterday to count streak
+  const threshold=10;
   if(hadYesterday){
-    if(ydc>=10)s++;else s=0;
+    if(ydc>=threshold)s++;else s=0;
   }else if(Object.keys(ds).length>1){
-    // Has older data but not yesterday → streak broken
     s=0;
   }
-  // else: no history at all or only today → keep whatever streak is stored
   LS.s('vb_streak',s);
+  LS.s('vb_streakDate',t);
+}
+
+// Called when a level session finishes — increment streak if today's correct >= threshold
+function checkStreakOnComplete(){
+  const t=today();
+  const ds=getDailyStats();
+  const todayCorrect=ds[t]?.correct||0;
+  const threshold=10;
+  if(todayCorrect>=threshold){
+    // Mark today's streak as earned (once per day)
+    const lastEarned=LS.g('vb_streakEarned',null);
+    if(lastEarned!==t){
+      let s=LS.g('vb_streak',0);
+      s++;
+      LS.s('vb_streak',s);
+      LS.s('vb_streakEarned',t);
+    }
+  }
 }
 const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;};
 
@@ -719,6 +748,13 @@ function recordAnswer(word,correct){
     if(p.streak>=MASTERY_N)p.mastered=true;
     sesCorrect++;
     const ds=getDailyStats();ds[t]=ds[t]||{correct:0};ds[t].correct++;saveDailyStats(ds);
+    // Live streak: increment when today's correct first hits threshold (any level)
+    const todayCorrect=ds[t].correct;
+    const streakDate=LS.g('vb_streakDate',null);
+    if(todayCorrect===10&&streakDate!==t){
+      LS.s('vb_streak',(LS.g('vb_streak',0)+1));
+      LS.s('vb_streakDate',t);
+    }
   }else{
     p.streak=0;sesWrong++;
     if(!sesMistakeIds.includes(word.id))sesMistakeIds.push(word.id);
@@ -1087,6 +1123,7 @@ function endSession(){
   }else rb.classList.add('hidden');
   document.getElementById('doneActions').style.display='';
   isReviewSes=false;
+  checkStreakOnComplete();
   showScreen('screen-done');refreshStats();
 }
 function startMistakeReview(){
@@ -1134,6 +1171,13 @@ function switchLevel(newLv){
   sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;answered=false;
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
   buildQueue();
+  // If today's queue for this level is already fully done, show "already complete" properly
+  if(queueIndex>=todayQueue.length&&todayQueue.length>0){
+    endSession();
+    return;
+  }
+  // Otherwise always go to practice screen
+  showScreen('screen-practice');
   showWord();
 }
 
@@ -1237,6 +1281,7 @@ document.getElementById('exportBtn').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify({
     progress:getProgress(),mistakes:getMistakes(),dailyStats:getDailyStats(),
     streak:LS.g('vb_streak',0),
+    streakDate:LS.g('vb_streakDate',null),
     activeLevel:getActiveLevel(),
     nextIdx_A1:LS.g('vb_nextIdx_A1',0),
     nextIdx_A2:LS.g('vb_nextIdx_A2',0),
@@ -1267,7 +1312,8 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
       if(data.mistakes)   LS.s('vb_mistakes',data.mistakes);
       if(data.dailyStats) LS.s('vb_dailyStats',data.dailyStats);
       if(data.streak!=null)      LS.s('vb_streak',data.streak);
-      if(data.activeLevel)       LS.s('vb_activeLevel',data.activeLevel);
+      if(data.streakDate!=null)   LS.s('vb_streakDate',data.streakDate);
+      if(data.activeLevel)        LS.s('vb_activeLevel',data.activeLevel);
       if(data.nextIdx_A1!=null)  LS.s('vb_nextIdx_A1',data.nextIdx_A1);
       if(data.nextIdx_A2!=null)  LS.s('vb_nextIdx_A2',data.nextIdx_A2);
       if(data.nextIdx_B1!=null)  LS.s('vb_nextIdx_B1',data.nextIdx_B1);
@@ -1284,7 +1330,7 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
 });
 document.getElementById('resetBtn').addEventListener('click',()=>{
   if(confirm(T('resetVerbConfirm'))){
-    ['vb_progress','vb_mistakes','vb_dailyStats','vb_streak','vb_nextIdx',
+    ['vb_progress','vb_mistakes','vb_dailyStats','vb_streak','vb_streakDate','vb_streakEarned','vb_nextIdx',
      'vb_nextIdx_A1','vb_nextIdx_A2','vb_nextIdx_B1','vb_nextIdx_B2',
      'vb_qDate_A1','vb_qDate_A2','vb_qDate_B1','vb_qDate_B2',
      'vb_queue_A1','vb_queue_A2','vb_queue_B1','vb_queue_B2',
