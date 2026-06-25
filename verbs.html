@@ -675,31 +675,18 @@ function pickNewWords(){
   const quota=DAILY_QUOTA[lv]||10;
   const pool=allVerbs.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);
   if(!pool.length)return[];
-
   const unmastered=pool.filter(w=>!prog[w.id]?.mastered);
-
-  if(unmastered.length>0){
-    // Pick unmastered words in order, cycling when exhausted
-    const idxKey=`vb_nextIdx_${lv}`;
-    let idx=LS.g(idxKey,0)%unmastered.length;
-    const res=[];
-    for(let i=0;i<quota;i++){
-      res.push(unmastered[idx%unmastered.length]);
-      idx++;
-    }
-    LS.s(idxKey,idx%unmastered.length);
-    return res;
-  }
-
-  // All mastered — cycle through full pool for review
-  const cycleKey=`vb_cycleIdx_${lv}`;
-  let idx=LS.g(cycleKey,0)%pool.length;
+  const src=unmastered.length>0?unmastered:pool;
+  const idxKey=`vb_nextIdx_${lv}`;
+  let idx=LS.g(idxKey,0);
+  if(idx>=src.length)idx=0;
   const res=[];
-  for(let i=0;i<quota;i++){
-    res.push(pool[idx%pool.length]);
-    idx++;
+  let scanned=0;
+  while(res.length<quota&&scanned<src.length){
+    res.push(src[idx%src.length]);
+    idx++;scanned++;
   }
-  LS.s(cycleKey,idx%pool.length);
+  LS.s(idxKey,idx%src.length);
   return res;
 }
 function updateStreak(t){
@@ -780,12 +767,10 @@ function getDisplayCorrect(){
 function getVocabStat(){
   if(!allVerbs.length)return{text:'—',lbl:'📚 Verbs'};
   const lv=getActiveLevel();
-  const pool=allVerbs.filter(w=>w.level===lv);
-  const sz=pool.length;
-  if(!sz)return{text:'—',lbl:`📚 ${lv} Verbs`};
-  const idx=LS.g(`vb_nextIdx_${lv}`,0);
-  const display=lv==='A1'?(idx%sz)||0:Math.min(idx,sz);
-  return{text:`${display}/${sz}`,lbl:`📚 ${lv} Verbs`};
+  const quota=DAILY_QUOTA[lv]||10;
+  const done=Math.min(queueIndex,todayQueue.length);
+  const total=todayQueue.length||quota;
+  return{text:`${done}/${total}`,lbl:`📚 ${lv} Verbs`};
 }
 function refreshStats(){
   const prog=getProgress();
