@@ -1139,11 +1139,15 @@ function startMistakeReview(){
 }
 function startNochmal(){
   const lv=getActiveLevel();
-  const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
-  todayQueue=shuffle(LS.g(`vb_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean));
-  queueIndex=0;sesCorrect=0;sesWrong=0;sesMistakeIds=[];
+  // Clear qDate so buildQueue rebuilds a fresh queue
+  LS.d(`vb_qDate_${lv}`);
+  LS.d(`vb_queue_${lv}`);
+  LS.d(`vb_qi_${lv}`);
+  sesCorrect=0;sesWrong=0;sesMistakeIds=[];
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
-  isReviewSes=false;answered=false;showWord();
+  isReviewSes=false;answered=false;
+  buildQueue();
+  showWord();
 }
 
 // ═══════════════════════════════════════
@@ -1170,16 +1174,17 @@ function speak(text){
 function switchLevel(newLv){
   if(!LEVELS.includes(newLv))return;
   LS.s('vb_activeLevel',newLv);
-  // Reset session state
+  // Clear today's queue cache so buildQueue always rebuilds fresh on switch
+  LS.d(`vb_qDate_${newLv}`);
+  LS.d(`vb_queue_${newLv}`);
+  LS.d(`vb_qi_${newLv}`);
   sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;answered=false;
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
   buildQueue();
-  // If today's queue for this level is already fully done, show "already complete" properly
-  if(queueIndex>=todayQueue.length&&todayQueue.length>0){
-    endSession();
-    return;
+  if(todayQueue.length===0){
+    // pickNewWords returned nothing — shouldn't happen with new cycle logic
+    endSession();return;
   }
-  // Otherwise always go to practice screen
   showScreen('screen-practice');
   showWord();
 }
