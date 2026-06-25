@@ -676,27 +676,30 @@ function pickNewWords(){
   const pool=allVerbs.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);
   if(!pool.length)return[];
 
-  const idxKey=`vb_nextIdx_${lv}`;
-  let idx=LS.g(idxKey,0);
+  const unmastered=pool.filter(w=>!prog[w.id]?.mastered);
 
-  // All levels: cycle back when exhausted
-  if(idx>=pool.length){idx=0;LS.s(idxKey,0);}
-
-  const res=[];
-  let looped=false;
-  const startIdx=idx;
-  while(res.length<quota){
-    if(idx>=pool.length){
-      if(looped)break; // avoid infinite loop
-      idx=0;looped=true;
+  if(unmastered.length>0){
+    // Pick unmastered words in order, cycling when exhausted
+    const idxKey=`vb_nextIdx_${lv}`;
+    let idx=LS.g(idxKey,0)%unmastered.length;
+    const res=[];
+    for(let i=0;i<quota;i++){
+      res.push(unmastered[idx%unmastered.length]);
+      idx++;
     }
-    if(looped&&idx>=startIdx)break; // full circle done
-    const w=pool[idx];idx++;
-    // A1: include mastered words too (for cycling review)
-    // A2/B1/B2: skip mastered
-    if(lv==='A1'||!prog[w.id]?.mastered)res.push(w);
+    LS.s(idxKey,idx%unmastered.length);
+    return res;
   }
-  LS.s(idxKey,idx);
+
+  // All mastered — cycle through full pool for review
+  const cycleKey=`vb_cycleIdx_${lv}`;
+  let idx=LS.g(cycleKey,0)%pool.length;
+  const res=[];
+  for(let i=0;i<quota;i++){
+    res.push(pool[idx%pool.length]);
+    idx++;
+  }
+  LS.s(cycleKey,idx%pool.length);
   return res;
 }
 function updateStreak(t){
@@ -1332,6 +1335,7 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
   if(confirm(T('resetVerbConfirm'))){
     ['vb_progress','vb_mistakes','vb_dailyStats','vb_streak','vb_streakDate','vb_streakEarned','vb_nextIdx',
      'vb_nextIdx_A1','vb_nextIdx_A2','vb_nextIdx_B1','vb_nextIdx_B2',
+     'vb_cycleIdx_A1','vb_cycleIdx_A2','vb_cycleIdx_B1','vb_cycleIdx_B2',
      'vb_qDate_A1','vb_qDate_A2','vb_qDate_B1','vb_qDate_B2',
      'vb_queue_A1','vb_queue_A2','vb_queue_B1','vb_queue_B2',
      'vb_qi_A1','vb_qi_A2','vb_qi_B1','vb_qi_B2',
