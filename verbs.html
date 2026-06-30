@@ -1123,15 +1123,22 @@ function startMistakeReview(){
   isReviewSes=true;answered=false;showWord();
 }
 function startNochmal(){
+  // Repeat same words from today's session (shuffle, no new words)
   const lv=getActiveLevel();
-  // Clear qDate so buildQueue rebuilds a fresh queue
-  LS.d(`vb_qDate_${lv}`);
-  LS.d(`vb_queue_${lv}`);
-  LS.d(`vb_qi_${lv}`);
+  const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
+  const saved=LS.g(`vb_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean);
+  if(saved.length){
+    todayQueue=shuffle(saved);
+  }
+  // If somehow empty, keep current todayQueue shuffled
+  else if(todayQueue.length){
+    todayQueue=shuffle([...todayQueue]);
+  }
+  queueIndex=0;
+  LS.s(`vb_qi_${lv}`,0);
   sesCorrect=0;sesWrong=0;sesMistakeIds=[];
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
   isReviewSes=false;answered=false;
-  buildQueue();
   showWord();
 }
 
@@ -1159,17 +1166,12 @@ function speak(text){
 function switchLevel(newLv){
   if(!LEVELS.includes(newLv))return;
   LS.s('vb_activeLevel',newLv);
-  // Clear today's queue cache so buildQueue always rebuilds fresh on switch
-  LS.d(`vb_qDate_${newLv}`);
-  LS.d(`vb_queue_${newLv}`);
-  LS.d(`vb_qi_${newLv}`);
   sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;answered=false;
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
-  buildQueue();
-  if(todayQueue.length===0){
-    // pickNewWords returned nothing — shouldn't happen with new cycle logic
-    endSession();return;
-  }
+  buildQueue(); // restores saved queue if already built today, else builds new
+  if(todayQueue.length===0){endSession();return;}
+  // If this level's session is already fully done today, show done screen
+  if(queueIndex>=todayQueue.length){endSession();return;}
   showScreen('screen-practice');
   showWord();
 }
