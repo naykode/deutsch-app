@@ -1280,14 +1280,21 @@ function endSession(){
   if(total===0){
     document.getElementById('doneEmoji').textContent='✅';
     document.getElementById('doneTitle').textContent='Already Complete!';
-    document.getElementById('doneSub').textContent="You finished today\'s session. Come back tomorrow for new words!";
     document.getElementById('scCorrect').textContent='—';
     document.getElementById('scWrong').textContent='—';
     document.getElementById('scMastered').textContent=mastered;
     document.getElementById('scTotal').textContent='—';
     document.getElementById('reviewBtn').classList.add('hidden');
     document.getElementById('doneActions').style.display='';
-    showScreen('screen-done');refreshStats();return;
+    showScreen('screen-done');refreshStats();
+    if(checkMasteryGate()){
+      const subEl=document.getElementById('doneSub');
+      subEl.innerHTML='🎓 <strong>Ready for Mastery Test!</strong> <button id="startMasteryBtn" style="display:block;margin:8px auto 0;padding:6px 16px;border-radius:8px;border:none;background:var(--acc);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:.85rem">Start Test →</button>';
+      document.getElementById('startMasteryBtn').addEventListener('click',startMasteryTest);
+    }else{
+      document.getElementById('doneSub').textContent="You finished today\'s session. Come back tomorrow for new words!";
+    }
+    return;
   }
   const pct=total?Math.round(sesCorrect/total*100):0;
   document.getElementById('scCorrect').textContent=sesCorrect;
@@ -1317,17 +1324,14 @@ function endSession(){
     rb.classList.remove('hidden');
   }else rb.classList.add('hidden');
   document.getElementById('doneActions').style.display='';
+  const wasReview=isReviewSes;
   isReviewSes=false;
   checkStreakOnComplete();
-  // Check if mastery gate should trigger
-  if(!isReviewSes&&checkMasteryGate()){
-    showScreen('screen-done');refreshStats();
-    // Show mastery prompt on done screen
-    const sub=document.getElementById('doneSub');
-    sub.innerHTML='🎓 <strong>You're ready for a Mastery Test!</strong> <button id="startMasteryBtn" style="margin-left:8px;padding:4px 12px;border-radius:8px;border:none;background:var(--acc);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:.82rem">Start Test →</button>';
+  showScreen('screen-done');refreshStats();
+  if(!wasReview&&checkMasteryGate()){
+    const subEl=document.getElementById('doneSub');
+    subEl.innerHTML='🎓 <strong>Ready for Mastery Test!</strong> <button id="startMasteryBtn" style="display:block;margin:8px auto 0;padding:6px 16px;border-radius:8px;border:none;background:var(--acc);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:.85rem">Start Test →</button>';
     document.getElementById('startMasteryBtn').addEventListener('click',startMasteryTest);
-  }else{
-    showScreen('screen-done');refreshStats();
   }
 }
 function startMistakeReview(){
