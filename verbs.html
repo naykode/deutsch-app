@@ -274,6 +274,20 @@ main{
 .fill-feedback.ok {background:var(--ok-bg);color:var(--ok);}
 .fill-feedback.err{background:var(--err-bg);color:var(--err);}
 
+/* ── MASTERY GATE ── */
+.mastery-intro{text-align:center;padding:8px 0 4px;}
+.mastery-intro .m-emoji{font-size:2.4rem;line-height:1;}
+.mastery-intro .m-title{font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:800;margin:6px 0 4px;}
+.mastery-intro .m-sub{font-size:.82rem;color:var(--ink2);font-weight:600;}
+.mastery-q-wrap{display:flex;flex-direction:column;gap:10px;width:100%;}
+.mastery-counter{text-align:center;font-size:.75rem;font-weight:700;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;}
+.mastery-result{text-align:center;padding:6px 0;}
+.mastery-result .mr-emoji{font-size:2.8rem;}
+.mastery-result .mr-score{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:800;margin:6px 0 2px;}
+.mastery-result .mr-sub{font-size:.85rem;color:var(--ink2);font-weight:600;line-height:1.5;}
+.mastery-result .mr-breakdown{font-size:.78rem;color:var(--ink3);margin-top:6px;}
+.mastery-badge{display:inline-block;background:var(--ok-bg);color:var(--ok);border:1.5px solid var(--ok);border-radius:20px;padding:4px 14px;font-size:.78rem;font-weight:800;margin-top:8px;letter-spacing:.04em;}
+
 /* ── NEXT BUTTON ── */
 .btn-next{
   width:100%;height:58px;
@@ -505,6 +519,13 @@ main{
     </div>
   </div>
 
+  <!-- MASTERY GATE SCREEN -->
+  <div id="screen-mastery" class="hidden">
+    <div class="done-card" id="masteryCard">
+      <!-- filled dynamically -->
+    </div>
+  </div>
+
 </main>
 
 <!-- SETTINGS SHEET -->
@@ -539,6 +560,8 @@ function getLang(){return window.i18n?window.i18n.detect():'en';}
 function getMeaning(w){const c=LANG_MEANING[getLang()]||'english';return w[c]||w.english||'';}
 function getExample(w){const c=LANG_EXAMPLE[getLang()]||'example_en';return w[c]||w.example_en||'';}
 const MASTERY_N = 3;
+const MASTERY_TEST_N = 20;  // questions in mastery test
+const MASTERY_PASS_PCT = 0.8; // 80% to pass
 const LEVELS    = ['A1','A2','B1','B2'];
 const MCQ_N     = 4;    // number of choices
 // Separate localStorage namespace from nouns (prefix vb_)
@@ -663,9 +686,34 @@ function buildQueue(){
   LS.s(`vb_qi_${lv}`,0);
 }
 function buildWeeklyReview(t){
+  const CAP=70; // max 70 verbs per weekly review
   const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
-  todayQueue=shuffle(LS.g('vb_learned',[]).map(id=>wm[id]).filter(Boolean));
-  queueIndex=0;LS.s('vb_qDate',t);LS.s('vb_queue',todayQueue.map(w=>w.id));LS.s('vb_qi',0);
+  const prog=getProgress();
+  const mistakes=getMistakes();
+  // All mistake ids from the past 7 days
+  const recentMistakeIds=new Set();
+  for(let d=0;d<7;d++){
+    const dt=new Date(t);dt.setDate(dt.getDate()-d);
+    const ds=dt.toISOString().slice(0,10);
+    (mistakes[ds]||[]).forEach(id=>recentMistakeIds.add(id));
+  }
+  // All learned words
+  const learnedIds=LS.g('vb_learned',[]);
+  const learnedWords=learnedIds.map(id=>wm[id]).filter(Boolean);
+  // Separate: weak (streak<2 OR in mistakes) vs strong
+  const weak=[];const strong=[];
+  learnedWords.forEach(w=>{
+    const p=prog[w.id];
+    const isWeak=(p?.streak||0)<2||recentMistakeIds.has(w.id);
+    isWeak?weak.push(w):strong.push(w);
+  });
+  // weak first, then random strong, total cap 70
+  const weakShuffled=shuffle(weak);
+  const strongShuffled=shuffle(strong);
+  const combined=[...weakShuffled,...strongShuffled].slice(0,CAP);
+  todayQueue=combined;
+  queueIndex=0;
+  LS.s('vb_qDate',t);LS.s('vb_queue',todayQueue.map(w=>w.id));LS.s('vb_qi',0);
 }
 function getActiveLevel(){return LS.g('vb_activeLevel','A1');}
 
@@ -790,7 +838,7 @@ function refreshStats(){
 //  SHOW WORD
 // ═══════════════════════════════════════
 function showScreen(id){
-  ['screen-loading','screen-practice','screen-done']
+  ['screen-loading','screen-practice','screen-done','screen-mastery']
     .forEach(s=>document.getElementById(s).classList.toggle('hidden',s!==id));
 }
 
@@ -1065,6 +1113,165 @@ function advance(){
 // ═══════════════════════════════════════
 //  END SESSION
 // ═══════════════════════════════════════
+// ═══════════════════════════════════════
+//  MASTERY GATE
+// ═══════════════════════════════════════
+let masteryQueue=[];let masteryIndex=0;
+let masteryCorrect=0;let masteryAnswered=false;
+let masteryCurrentChoices=[];
+
+function checkMasteryGate(){
+  // After daily session: check if level is ready for mastery test
+  const lv=getActiveLevel();
+  const prog=getProgress();
+  const pool=allVerbs.filter(w=>w.level===lv);
+  const masteredCount=pool.filter(w=>prog[w.id]?.mastered).length;
+  const total=pool.length;
+  const pct=total>0?masteredCount/total:0;
+  // Trigger if ≥80% mastered AND not already certified today
+  const certKey=`vb_cert_${lv}`;
+  const alreadyCertified=LS.g(certKey,false);
+  return pct>=0.8&&!alreadyCertified&&masteredCount>=10;
+}
+
+function startMasteryTest(){
+  const lv=getActiveLevel();
+  const prog=getProgress();
+  const pool=allVerbs.filter(w=>w.level===lv);
+  // Pick MASTERY_TEST_N random words (prefer unmastered + weak)
+  const weak=pool.filter(w=>!prog[w.id]?.mastered||(prog[w.id]?.streak||0)<2);
+  const strong=pool.filter(w=>prog[w.id]?.mastered&&(prog[w.id]?.streak||0)>=2);
+  const src=[...shuffle(weak),...shuffle(strong)].slice(0,MASTERY_TEST_N);
+  masteryQueue=src;masteryIndex=0;masteryCorrect=0;masteryAnswered=false;
+  showMasteryQuestion();
+}
+
+function showMasteryQuestion(){
+  if(masteryIndex>=masteryQueue.length){endMasteryTest();return;}
+  const word=masteryQueue[masteryIndex];
+  masteryAnswered=false;
+  const choices=generateChoices(word);
+  masteryCurrentChoices=choices;
+  const pct=Math.round(masteryIndex/masteryQueue.length*100);
+  const card=document.getElementById('masteryCard');
+  card.innerHTML=`
+    <div class="mastery-intro">
+      <div class="m-emoji">🎓</div>
+      <div class="m-title">Mastery Test — ${getActiveLevel()}</div>
+      <div class="m-sub">Can you remember these words?</div>
+    </div>
+    <div class="mastery-counter">${masteryIndex+1} / ${masteryQueue.length}</div>
+    <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+    <div class="verb-card" id="mCard" style="margin:0">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="level-pill">${word.level}</span>
+      </div>
+      <div class="verb-text">${word.word}</div>
+      <div class="example-hint" id="mExHint" style="${word.example_verb?'':'display:none'}">
+        ${(word.example_verb||'').replace('___','<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>')}
+      </div>
+      <div class="feedback-area hidden" id="mFeedback">
+        <div class="fb-banner" id="mBanner"></div>
+        <div class="meaning-txt" id="mMeaning"></div>
+      </div>
+    </div>
+    <div class="mastery-q-wrap">
+      <div class="mcq-grid" id="mGrid"></div>
+      <button class="btn-next hidden" id="mNextBtn">Weiter →</button>
+    </div>`;
+  // Render MCQ choices
+  const grid=document.getElementById('mGrid');
+  choices.forEach((choice,i)=>{
+    const btn=document.createElement('button');
+    btn.className='mcq-btn';
+    btn.textContent=getMeaning(choice)||choice.english;
+    btn.addEventListener('click',()=>handleMasteryAnswer(choice.id,word.id));
+    grid.appendChild(btn);
+  });
+  document.getElementById('mNextBtn').addEventListener('click',()=>{
+    masteryIndex++;showMasteryQuestion();
+  });
+  showScreen('screen-mastery');
+}
+
+function handleMasteryAnswer(choiceId,wordId){
+  if(masteryAnswered)return;
+  masteryAnswered=true;
+  const word=masteryQueue[masteryIndex];
+  const correct=choiceId===wordId;
+  if(correct)masteryCorrect++;
+  // Visual feedback
+  document.getElementById('mGrid').querySelectorAll('.mcq-btn').forEach(btn=>{
+    btn.disabled=true;
+  });
+  document.getElementById('mCard').classList.add(correct?'correct':'wrong');
+  const banner=document.getElementById('mBanner');
+  banner.className='fb-banner '+(correct?'ok':'err');
+  banner.textContent=correct?'✓ Correct!':'✗ '+getMeaning(word);
+  document.getElementById('mMeaning').textContent=getMeaning(word);
+  document.getElementById('mFeedback').classList.remove('hidden');
+  document.getElementById('mNextBtn').classList.remove('hidden');
+  document.getElementById('mGrid').classList.add('hidden');
+}
+
+function endMasteryTest(){
+  const lv=getActiveLevel();
+  const total=masteryQueue.length;
+  const pct=total>0?masteryCorrect/total:0;
+  const passed=pct>=MASTERY_PASS_PCT;
+  const pctDisplay=Math.round(pct*100);
+  // If passed, mark level certified
+  if(passed){
+    LS.s(`vb_cert_${lv}`,true);
+  }else{
+    // Failed: add wrong words back to queue for next session
+    const wrongWords=masteryQueue.filter((_,i)=>{
+      // We don't have per-question tracking here — just re-queue weak words
+      const prog=getProgress();
+      return (prog[masteryQueue[i].id]?.streak||0)<2;
+    });
+    // Mark them as needing review by resetting streak
+    const prog=getProgress();
+    wrongWords.forEach(w=>{if(prog[w.id]){prog[w.id].streak=Math.max(0,(prog[w.id].streak||0)-1);}});
+    saveProgress(prog);
+  }
+  const NEXT_LEVEL={A1:'A2',A2:'B1',B1:'B2',B2:null};
+  const nextLv=NEXT_LEVEL[lv];
+  const card=document.getElementById('masteryCard');
+  card.innerHTML=`
+    <div class="mastery-result">
+      <div class="mr-emoji">${passed?'🏆':'📚'}</div>
+      <div class="mr-score">${pctDisplay}%</div>
+      <div class="mr-sub">${passed
+        ?`You passed the ${lv} Mastery Test!`
+        :`Not quite — keep practicing ${lv}!`}</div>
+      <div class="mr-breakdown">${masteryCorrect} / ${total} correct</div>
+      ${passed?`<div class="mastery-badge">✓ ${lv} Certified</div>`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+      ${passed&&nextLv?`
+        <button class="btn-next" id="mGoNextBtn" style="background:var(--ok)">
+          → Start ${nextLv} Practice
+        </button>`:''}
+      <button class="btn-nochmal" id="mPracticeBtn">↺ Continue ${lv} Practice</button>
+      <button class="btn-done-today" id="mDoneBtn">✓ Done for today</button>
+    </div>`;
+  // Bind buttons
+  document.getElementById('mPracticeBtn').addEventListener('click',()=>{
+    sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;
+    buildQueue();showWord();
+  });
+  document.getElementById('mDoneBtn').addEventListener('click',()=>{
+    showScreen('screen-done');
+  });
+  if(passed&&nextLv){
+    document.getElementById('mGoNextBtn').addEventListener('click',()=>{
+      document.getElementById('levelSelect').value=nextLv;
+      switchLevel(nextLv);
+    });
+  }
+}
+
 function endSession(){
   const prog=getProgress();
   const mastered=Object.values(prog).filter(p=>p.mastered).length;
@@ -1112,7 +1319,16 @@ function endSession(){
   document.getElementById('doneActions').style.display='';
   isReviewSes=false;
   checkStreakOnComplete();
-  showScreen('screen-done');refreshStats();
+  // Check if mastery gate should trigger
+  if(!isReviewSes&&checkMasteryGate()){
+    showScreen('screen-done');refreshStats();
+    // Show mastery prompt on done screen
+    const sub=document.getElementById('doneSub');
+    sub.innerHTML='🎓 <strong>You're ready for a Mastery Test!</strong> <button id="startMasteryBtn" style="margin-left:8px;padding:4px 12px;border-radius:8px;border:none;background:var(--acc);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:.82rem">Start Test →</button>';
+    document.getElementById('startMasteryBtn').addEventListener('click',startMasteryTest);
+  }else{
+    showScreen('screen-done');refreshStats();
+  }
 }
 function startMistakeReview(){
   if(!sesMistakeIds.length)return;
@@ -1332,6 +1548,7 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
      'vb_queue_A1','vb_queue_A2','vb_queue_B1','vb_queue_B2',
      'vb_qi_A1','vb_qi_A2','vb_qi_B1','vb_qi_B2',
      'vb_activeLevel','vb_weekStart','vb_learned',
+     'vb_cert_A1','vb_cert_A2','vb_cert_B1','vb_cert_B2',
      'vb_qDate','vb_queue','vb_qi'].forEach(k=>LS.d(k));
     document.getElementById('sheetOv').classList.remove('open');
     location.reload();
