@@ -272,6 +272,31 @@ main{
   background:var(--card2);transition:all .15s;text-decoration:none;
 }
 .nav-link:hover{background:var(--border);color:var(--ink);}
+/* ── LEVEL SELECTOR ── */
+.level-select{
+  height:36px;padding:0 8px;
+  border:1px solid var(--border);border-radius:var(--r-sm);
+  background:var(--card2);color:var(--ink);
+  font-family:inherit;font-size:.82rem;font-weight:700;
+  cursor:pointer;outline:none;transition:border-color .15s;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23868e96'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;padding-right:22px;
+}
+.level-select:focus{border-color:var(--acc);}
+/* ── MASTERY GATE ── */
+.mastery-intro{text-align:center;padding:8px 0 4px;}
+.mastery-intro .m-emoji{font-size:2.2rem;}
+.mastery-intro .m-title{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:800;margin:6px 0 4px;}
+.mastery-intro .m-sub{font-size:.82rem;color:var(--ink2);font-weight:600;}
+.mastery-counter{text-align:center;font-size:.75rem;font-weight:700;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;}
+.mastery-result{text-align:center;padding:6px 0;}
+.mastery-result .mr-emoji{font-size:2.6rem;}
+.mastery-result .mr-score{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:800;margin:6px 0 2px;}
+.mastery-result .mr-sub{font-size:.85rem;color:var(--ink2);font-weight:600;line-height:1.5;}
+.mastery-result .mr-breakdown{font-size:.78rem;color:var(--ink3);margin-top:6px;}
+.mastery-badge{display:inline-block;background:var(--ok-bg);color:var(--ok);border:1.5px solid var(--ok);border-radius:20px;padding:4px 14px;font-size:.78rem;font-weight:800;margin-top:8px;}
+#screen-mastery{width:100%;display:flex;flex-direction:column;gap:12px;}
 </style>
 <script src="i18n.js"></script>
 </head>
@@ -284,7 +309,13 @@ main{
     <div class="logo">Arti<em>kel</em></div>
     <a href="verbs.html" class="nav-link" data-i18n="navToVerbs">Verben →</a>
   </div>
-  <div class="hdr-btns">
+  <div class="hdr-btns" style="display:flex;gap:6px;align-items:center;">
+    <select class="level-select" id="levelSelect" title="Select level">
+      <option value="A1">A1</option>
+      <option value="A2">A2</option>
+      <option value="B1">B1</option>
+      <option value="B2">B2</option>
+    </select>
     <button class="hdr-btn" id="darkBtn">🌙</button>
     <button class="hdr-btn" id="audioBtn">🔊</button>
     <button class="hdr-btn" id="settingsBtn">⚙️</button>
@@ -381,6 +412,12 @@ main{
     </div>
   </div>
 
+
+  <!-- MASTERY GATE SCREEN -->
+  <div id="screen-mastery" class="hidden">
+    <div class="done-card" id="masteryCard"></div>
+  </div>
+
 </main>
 
 <!-- SETTINGS SHEET -->
@@ -406,7 +443,7 @@ main{
 const SUPA_URL  = 'https://vloafmvpmghhncwmnpnx.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsb2FmbXZwbWdoaG5jd21ucG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTI3NjAsImV4cCI6MjA5MjkyODc2MH0.iUtPE1fVHymhPFHbwKPnxRSzXTzcYCXSnBKpXFu5ty8';
 const TABLE     = 'nouns'; // new clean table
-const DAILY_N   = 20;
+const DAILY_QUOTA = {A1:20, A2:10, B1:10, B2:10};
 // ── Language content helpers ──
 const LANG_MEANING={en:'english',ar:'arabic',tr:'turkish',fa:'farsi',ku:'kurdish',ps:'pashto'};
 const LANG_EXAMPLE={en:'example_en',ar:'example_ar',tr:'example_tr',fa:'example_fa',ku:'example_ku',ps:'example_ps'};
@@ -414,7 +451,9 @@ function getLang(){return window.i18n?window.i18n.detect():'en';}
 function getMeaning(w){const c=LANG_MEANING[getLang()]||'english';return w[c]||w.english||'';}
 function getExample(w){const c=LANG_EXAMPLE[getLang()]||'example_en';return w[c]||w.example_en||'';}
 const MASTERY_N = 3;
-const LEVELS    = ['A1','A2','B1'];
+const MASTERY_TEST_N = 20;
+const MASTERY_PASS_PCT = 0.8;
+const LEVELS    = ['A1','A2','B1','B2'];
 
 // ═══════════════════════════════════════
 //  STATE
@@ -423,7 +462,8 @@ let allWords=[], todayQueue=[], queueIndex=0, answered=false;
 let audioEnabled=true, deVoice=null;
 let sesCorrect=0, sesWrong=0, sesMistakeIds=[], isReviewSes=false;
 window.sessionActive=()=>(sesCorrect+sesWrong)>0;
-let sesDisplayBase=0; // baseline correct count for Noch einmal display reset
+let sesDisplayBase=0;
+function getActiveLevel(){return LS.g('ap_activeLevel','A1');}
 
 const {createClient}=window.supabase;
 const db=createClient(SUPA_URL,SUPA_KEY);
@@ -481,13 +521,34 @@ function isWeeklyReview(){
   const diff=Math.floor((new Date(today())-new Date(ws))/86400000);
   return diff>0&&diff%7===0;
 }
+function pickNewWords(){
+  const prog=getProgress();
+  const lv=getActiveLevel();
+  const quota=DAILY_QUOTA[lv]||10;
+  const pool=allWords.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);
+  if(!pool.length)return[];
+  const unmastered=pool.filter(w=>!prog[w.id]?.mastered);
+  const src=unmastered.length>0?unmastered:pool;
+  const idxKey=`ap_nextIdx_${lv}`;
+  let idx=LS.g(idxKey,0);
+  if(idx>=src.length)idx=0;
+  const res=[];let scanned=0;
+  while(res.length<quota&&scanned<src.length){
+    res.push(src[idx%src.length]);idx++;scanned++;
+  }
+  LS.s(idxKey,idx%src.length);
+  return res;
+}
 function buildQueue(){
   if(isReviewSes)return;
-  const t=today(),saved=LS.g('ap_qDate',null);
+  const t=today();
+  const lv=getActiveLevel();
+  const qDateKey=`ap_qDate_${lv}`;
+  const saved=LS.g(qDateKey,null);
   if(saved===t){
     const wm=Object.fromEntries(allWords.map(w=>[w.id,w]));
-    todayQueue=LS.g('ap_queue',[]).map(id=>wm[id]).filter(Boolean);
-    queueIndex=LS.g('ap_qi',0);return;
+    const sq=LS.g(`ap_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean);
+    if(sq.length){todayQueue=sq;queueIndex=LS.g(`ap_qi_${lv}`,0);return;}
   }
   updateStreak(t);
   if(!LS.g('ap_weekStart',null))LS.s('ap_weekStart',t);
@@ -495,37 +556,63 @@ function buildQueue(){
   const wm=Object.fromEntries(allWords.map(w=>[w.id,w]));
   const prog=getProgress();
   const mistakeIds=getMistakes()[ydStr()]||[];
-  let mistakeWords=mistakeIds.map(id=>wm[id]).filter(w=>w&&!prog[w.id]?.mastered);
-  let newWords=[];
-  if(mistakeWords.length<DAILY_N){
-    newWords=pickNewWords(DAILY_N-mistakeWords.length);
-  }else{
-    mistakeWords=mistakeWords.slice(0,DAILY_N*2);
-  }
+  const quota=DAILY_QUOTA[lv]||10;
+  let mistakeWords=mistakeIds.map(id=>wm[id]).filter(w=>w&&w.level===lv&&!prog[w.id]?.mastered);
+  if(mistakeWords.length>quota)mistakeWords=mistakeWords.slice(0,quota);
+  const newWords=pickNewWords();
   const learned=new Set(LS.g('ap_learned',[]));
   newWords.forEach(w=>learned.add(w.id));
   LS.s('ap_learned',[...learned]);
   todayQueue=shuffle([...mistakeWords,...newWords]);
   queueIndex=0;
-  LS.s('ap_qDate',t);LS.s('ap_queue',todayQueue.map(w=>w.id));LS.s('ap_qi',0);
+  LS.s(qDateKey,t);
+  LS.s(`ap_queue_${lv}`,todayQueue.map(w=>w.id));
+  LS.s(`ap_qi_${lv}`,0);
 }
 function buildWeeklyReview(t){
+  const CAP=140;
   const wm=Object.fromEntries(allWords.map(w=>[w.id,w]));
-  todayQueue=shuffle(LS.g('ap_learned',[]).map(id=>wm[id]).filter(Boolean));
-  queueIndex=0;LS.s('ap_qDate',t);LS.s('ap_queue',todayQueue.map(w=>w.id));LS.s('ap_qi',0);
-}
-function pickNewWords(n){
-  let idx=LS.g('ap_nextIdx',0);const prog=getProgress();const res=[];
-  while(res.length<n&&idx<allWords.length){
-    if(!prog[allWords[idx].id]?.mastered)res.push(allWords[idx]);idx++;
+  const prog=getProgress();
+  const mistakes=getMistakes();
+  const recentMistakeIds=new Set();
+  for(let d=0;d<7;d++){
+    const dt=new Date(t);dt.setDate(dt.getDate()-d);
+    const ds=dt.toISOString().slice(0,10);
+    (mistakes[ds]||[]).forEach(id=>recentMistakeIds.add(id));
   }
-  LS.s('ap_nextIdx',idx);return res;
+  const learnedWords=LS.g('ap_learned',[]).map(id=>wm[id]).filter(Boolean);
+  const weak=[],strong=[];
+  learnedWords.forEach(w=>{
+    const p=prog[w.id];
+    ((p?.streak||0)<2||recentMistakeIds.has(w.id))?weak.push(w):strong.push(w);
+  });
+  todayQueue=[...shuffle(weak),...shuffle(strong)].slice(0,CAP);
+  queueIndex=0;
+  const lv=getActiveLevel();
+  LS.s(`ap_qDate_${lv}`,t);
+  LS.s(`ap_queue_${lv}`,todayQueue.map(w=>w.id));
+  LS.s(`ap_qi_${lv}`,0);
 }
 function updateStreak(t){
+  const lastStreakDate=LS.g('ap_streakDate',null);
+  if(lastStreakDate===t)return;
   const ds=getDailyStats();const ydc=ds[ydStr()]?.correct||0;
   let s=LS.g('ap_streak',0);
-  if(ydc>=10)s++;else if(Object.keys(ds).length>0)s=0;
-  LS.s('ap_streak',s);
+  const hadYesterday=ydStr()in ds;
+  if(hadYesterday){if(ydc>=10)s++;else s=0;}
+  else if(Object.keys(ds).length>1){s=0;}
+  LS.s('ap_streak',s);LS.s('ap_streakDate',t);
+}
+function checkStreakOnComplete(){
+  const t=today();
+  const todayCorrect=getDailyStats()[t]?.correct||0;
+  if(todayCorrect>=10){
+    const lastEarned=LS.g('ap_streakEarned',null);
+    if(lastEarned!==t){
+      LS.s('ap_streak',(LS.g('ap_streak',0)+1));
+      LS.s('ap_streakEarned',t);
+    }
+  }
 }
 const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;};
 
@@ -584,25 +671,32 @@ function getVocabStat(){
   return { text:`${byLevel[last].length}/${byLevel[last].length}`, lbl:`📚 ${last} ✓` };
 }
 
+function getVocabStat(){
+  if(!allWords.length)return{text:'—',lbl:'📚 A1 Words'};
+  const lv=getActiveLevel();
+  const prog=getProgress();
+  const pool=allWords.filter(w=>w.level===lv);
+  const mastered=pool.filter(w=>prog[w.id]?.mastered).length;
+  return{text:`${mastered}/${pool.length}`,lbl:`📚 ${lv} Words`};
+}
 function refreshStats(){
   const prog=getProgress();
-  document.getElementById('sttMastered').textContent=Object.values(prog).filter(p=>p.mastered).length;
-  document.getElementById('sttStreak').textContent=getDisplayStreak();
-  document.getElementById('sttCorrect').textContent=getDisplayCorrect();
+  const mastered=Object.values(prog).filter(p=>p.mastered).length;
+  document.getElementById('sttMastered').textContent=mastered;
+  document.getElementById('sttStreak').textContent=LS.g('ap_streak',0);
+  document.getElementById('sttCorrect').textContent=Math.max(0,(getDailyStats()[today()]?.correct||0)-sesDisplayBase);
   const vs=getVocabStat();
   document.getElementById('sttVocab').textContent=vs.text;
   document.getElementById('sttVocabLbl').textContent=vs.lbl;
-  const pct=todayQueue.length?Math.round(queueIndex/todayQueue.length*100):0;
-  document.getElementById('progFill').style.width=pct+'%';
-  document.getElementById('progCount').textContent=`${queueIndex} / ${todayQueue.length}`;
+  const qi=Math.min(queueIndex,todayQueue.length);
+  const qt=todayQueue.length;
+  document.getElementById('progCount').textContent=`${qi} / ${qt||DAILY_QUOTA[getActiveLevel()]||10}`;
+  document.getElementById('progFill').style.width=qt?`${qi/qt*100}%`:'0%';
   document.getElementById('progLabel').textContent=isWeeklyReview()?T('progressWeekly'):T('progressToday');
 }
 
-// ═══════════════════════════════════════
-//  SHOW WORD
-// ═══════════════════════════════════════
 function showScreen(id){
-  ['screen-loading','screen-practice','screen-done']
+  ['screen-loading','screen-practice','screen-done','screen-mastery']
     .forEach(s=>document.getElementById(s).classList.toggle('hidden',s!==id));
 }
 
@@ -687,6 +781,122 @@ function advance(){queueIndex++;LS.s('ap_qi',queueIndex);showWord();}
 // ═══════════════════════════════════════
 //  END SESSION
 // ═══════════════════════════════════════
+// ═══════════════════════════════════════
+//  MASTERY GATE
+// ═══════════════════════════════════════
+let masteryQueue=[],masteryIndex=0,masteryCorrect=0,masteryAnswered=false;
+
+function checkMasteryGate(){
+  const lv=getActiveLevel();
+  const prog=getProgress();
+  const pool=allWords.filter(w=>w.level===lv);
+  const mastered=pool.filter(w=>prog[w.id]?.mastered).length;
+  const pct=pool.length>0?mastered/pool.length:0;
+  const certKey=`ap_cert_${lv}`;
+  return pct>=MASTERY_PASS_PCT&&!LS.g(certKey,false)&&mastered>=10;
+}
+function startMasteryTest(){
+  const lv=getActiveLevel();
+  const prog=getProgress();
+  const pool=allWords.filter(w=>w.level===lv);
+  const weak=pool.filter(w=>!prog[w.id]?.mastered||(prog[w.id]?.streak||0)<2);
+  const strong=pool.filter(w=>prog[w.id]?.mastered&&(prog[w.id]?.streak||0)>=2);
+  masteryQueue=[...shuffle(weak),...shuffle(strong)].slice(0,MASTERY_TEST_N);
+  masteryIndex=0;masteryCorrect=0;masteryAnswered=false;
+  showMasteryQuestion();
+}
+function showMasteryQuestion(){
+  if(masteryIndex>=masteryQueue.length){endMasteryTest();return;}
+  const word=masteryQueue[masteryIndex];
+  masteryAnswered=false;
+  const pct=Math.round(masteryIndex/masteryQueue.length*100);
+  const card=document.getElementById('masteryCard');
+  card.innerHTML=`
+    <div class="mastery-intro">
+      <div class="m-emoji">🎓</div>
+      <div class="m-title">Mastery Test — ${getActiveLevel()}</div>
+      <div class="m-sub">Choose the correct article</div>
+    </div>
+    <div class="mastery-counter">${masteryIndex+1} / ${masteryQueue.length}</div>
+    <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+    <div class="word-card" id="mCard" style="margin:0">
+      <div class="card-body">
+        <div class="card-top"><span class="level-pill">${word.level}</span></div>
+        <div class="word-text">${word.word}</div>
+        <div class="feedback-area hidden" id="mFeedback">
+          <div class="fb-banner" id="mBanner"></div>
+          <div class="meaning-txt" id="mMeaning"></div>
+        </div>
+      </div>
+    </div>
+    <div class="article-btns" id="mArtBtns" dir="ltr">
+      <button class="art-btn der" id="mDer"><span class="art-main">der</span><span class="art-sub">mask.</span></button>
+      <button class="art-btn die" id="mDie"><span class="art-main">die</span><span class="art-sub">fem.</span></button>
+      <button class="art-btn das" id="mDas"><span class="art-main">das</span><span class="art-sub">neut.</span></button>
+    </div>
+    <button class="btn-next hidden" id="mNextBtn">Weiter →</button>`;
+  ['Der','Die','Das'].forEach(art=>{
+    document.getElementById('m'+art).addEventListener('click',()=>handleMasteryAnswer(art.toLowerCase(),word.article));
+  });
+  document.getElementById('mNextBtn').addEventListener('click',()=>{masteryIndex++;showMasteryQuestion();});
+  showScreen('screen-mastery');
+}
+function handleMasteryAnswer(chosen,correct){
+  if(masteryAnswered)return;
+  masteryAnswered=true;
+  const ok=chosen===correct;
+  if(ok)masteryCorrect++;
+  document.getElementById('mCard').classList.add(ok?'correct':'wrong');
+  const banner=document.getElementById('mBanner');
+  banner.className='fb-banner '+(ok?'ok':'err');
+  const word=masteryQueue[masteryIndex];
+  banner.textContent=ok?`✓ ${correct} ${word.word}`:`✗ ${correct} ${word.word}`;
+  document.getElementById('mMeaning').textContent=getMeaning(word);
+  document.getElementById('mFeedback').classList.remove('hidden');
+  document.getElementById('mArtBtns').querySelectorAll('button').forEach(b=>b.disabled=true);
+  document.getElementById('mNextBtn').classList.remove('hidden');
+}
+function endMasteryTest(){
+  const lv=getActiveLevel();
+  const total=masteryQueue.length;
+  const pct=total>0?masteryCorrect/total:0;
+  const passed=pct>=MASTERY_PASS_PCT;
+  const pctDisplay=Math.round(pct*100);
+  if(passed)LS.s(`ap_cert_${lv}`,true);
+  else{
+    const prog=getProgress();
+    masteryQueue.forEach(w=>{if(prog[w.id]&&(prog[w.id].streak||0)>0)prog[w.id].streak--;});
+    saveProgress(prog);
+  }
+  const NEXT={A1:'A2',A2:'B1',B1:'B2',B2:null};
+  const nextLv=NEXT[lv];
+  const card=document.getElementById('masteryCard');
+  card.innerHTML=`
+    <div class="mastery-result">
+      <div class="mr-emoji">${passed?'🏆':'📚'}</div>
+      <div class="mr-score">${pctDisplay}%</div>
+      <div class="mr-sub">${passed?`You passed the ${lv} Mastery Test!`:`Keep practicing ${lv}!`}</div>
+      <div class="mr-breakdown">${masteryCorrect} / ${total} correct</div>
+      ${passed?`<div class="mastery-badge">✓ ${lv} Certified</div>`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+      ${passed&&nextLv?`<button class="btn-next" id="mGoNextBtn" style="background:var(--ok)">→ Start ${nextLv} Practice</button>`:''}
+      <button class="btn-nochmal" id="mPracticeBtn">↺ Continue ${lv} Practice</button>
+      <button class="btn-done-today" id="mDoneBtn">✓ Done for today</button>
+    </div>`;
+  document.getElementById('mPracticeBtn').addEventListener('click',()=>{
+    sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;
+    buildQueue();showWord();
+  });
+  document.getElementById('mDoneBtn').addEventListener('click',()=>showScreen('screen-done'));
+  if(passed&&nextLv){
+    document.getElementById('mGoNextBtn').addEventListener('click',()=>{
+      document.getElementById('levelSelect').value=nextLv;
+      switchLevel(nextLv);
+    });
+  }
+}
+
 function endSession(){
   const prog=getProgress();
   const mastered=Object.values(prog).filter(p=>p.mastered).length;
@@ -702,7 +912,15 @@ function endSession(){
     document.getElementById('scTotal').textContent='—';
     document.getElementById('reviewBtn').classList.add('hidden');
     document.getElementById('doneActions').style.display='';
-    showScreen('screen-done');refreshStats();return;
+    showScreen('screen-done');refreshStats();
+    if(checkMasteryGate()){
+      const subEl=document.getElementById('doneSub');
+      subEl.innerHTML='🎓 <strong>Ready for Mastery Test!</strong> <button id="startMasteryBtn" style="display:block;margin:8px auto 0;padding:6px 16px;border-radius:8px;border:none;background:var(--acc);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:.85rem">Start Test →</button>';
+      document.getElementById('startMasteryBtn').addEventListener('click',startMasteryTest);
+    }else{
+      document.getElementById('doneSub').textContent="You finished today\'s session. Come back tomorrow for new words!";
+    }
+    return;
   }
   const pct=total?Math.round(sesCorrect/total*100):0;
   document.getElementById('scCorrect').textContent=sesCorrect;
@@ -732,9 +950,15 @@ function endSession(){
     rb.classList.remove('hidden');
   }else{rb.classList.add('hidden');}
   document.getElementById('doneActions').style.display='';
+  const wasReview=isReviewSes;
   isReviewSes=false;
-  showScreen('screen-done');
-  refreshStats();
+  checkStreakOnComplete();
+  showScreen('screen-done');refreshStats();
+  if(!wasReview&&checkMasteryGate()){
+    const subEl=document.getElementById('doneSub');
+    subEl.innerHTML='🎓 <strong>Ready for Mastery Test!</strong> <button id="startMasteryBtn" style="display:block;margin:8px auto 0;padding:6px 16px;border-radius:8px;border:none;background:var(--acc);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:.85rem">Start Test →</button>';
+    document.getElementById('startMasteryBtn').addEventListener('click',startMasteryTest);
+  }
 }
 
 function startMistakeReview(){
@@ -745,11 +969,25 @@ function startMistakeReview(){
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
   isReviewSes=true;answered=false;showWord();
 }
+function switchLevel(newLv){
+  if(!LEVELS.includes(newLv))return;
+  LS.s('ap_activeLevel',newLv);
+  LS.d(`ap_qDate_${newLv}`);LS.d(`ap_queue_${newLv}`);LS.d(`ap_qi_${newLv}`);
+  sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;answered=false;
+  sesDisplayBase=getDailyStats()[today()]?.correct||0;
+  buildQueue();
+  if(todayQueue.length===0){endSession();return;}
+  if(queueIndex>=todayQueue.length){endSession();return;}
+  showScreen('screen-practice');showWord();
+}
 function startNochmal(){
+  const lv=getActiveLevel();
   const wm=Object.fromEntries(allWords.map(w=>[w.id,w]));
-  todayQueue=shuffle(LS.g('ap_queue',[]).map(id=>wm[id]).filter(Boolean));
-  queueIndex=0;sesCorrect=0;sesWrong=0;sesMistakeIds=[];
-  // Reset display baseline so Correct counter restarts from 0 visually
+  const saved=LS.g(`ap_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean);
+  if(saved.length)todayQueue=shuffle(saved);
+  else if(todayQueue.length)todayQueue=shuffle([...todayQueue]);
+  queueIndex=0;LS.s(`ap_qi_${lv}`,0);
+  sesCorrect=0;sesWrong=0;sesMistakeIds=[];
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
   isReviewSes=false;answered=false;showWord();
 }
@@ -785,8 +1023,10 @@ async function init(){
   document.getElementById('darkBtn').textContent=dark?'☀️':'🌙';
   audioEnabled=LS.g('ap_audio',true);
   document.getElementById('audioBtn').textContent=audioEnabled?'🔊':'🔇';
+  document.getElementById('levelSelect').value=getActiveLevel();
   try{
     allWords=await fetchAllWords();
+    sesDisplayBase=getDailyStats()[today()]?.correct||0;
     buildQueue();
     document.getElementById('screen-loading').classList.add('hidden');
     showWord();
@@ -804,6 +1044,10 @@ async function init(){
 // ═══════════════════════════════════════
 //  EVENTS
 // ═══════════════════════════════════════
+document.getElementById('levelSelect').addEventListener('change',(e)=>{
+  switchLevel(e.target.value);
+});
+
 document.querySelectorAll('.art-btn').forEach(btn=>
   btn.addEventListener('click',()=>handleAnswer(btn.dataset.article)));
 
@@ -843,7 +1087,9 @@ document.getElementById('sheetOv').addEventListener('click',e=>{
 document.getElementById('exportBtn').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify({
     progress:getProgress(),mistakes:getMistakes(),dailyStats:getDailyStats(),
-    streak:LS.g('ap_streak',0),nextIdx:LS.g('ap_nextIdx',0),
+    streak:LS.g('ap_streak',0),activeLevel:getActiveLevel(),
+    nextIdx_A1:LS.g('ap_nextIdx_A1',0),nextIdx_A2:LS.g('ap_nextIdx_A2',0),
+    nextIdx_B1:LS.g('ap_nextIdx_B1',0),nextIdx_B2:LS.g('ap_nextIdx_B2',0),
     learned:LS.g('ap_learned',[]),exportedAt:new Date().toISOString()
   },null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -869,8 +1115,12 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
       if(data.progress)   LS.s('ap_progress',data.progress);
       if(data.mistakes)   LS.s('ap_mistakes',data.mistakes);
       if(data.dailyStats) LS.s('ap_dailyStats',data.dailyStats);
-      if(data.streak!=null) LS.s('ap_streak',data.streak);
-      if(data.nextIdx!=null) LS.s('ap_nextIdx',data.nextIdx);
+      if(data.streak!=null)     LS.s('ap_streak',data.streak);
+      if(data.activeLevel)      LS.s('ap_activeLevel',data.activeLevel);
+      if(data.nextIdx_A1!=null) LS.s('ap_nextIdx_A1',data.nextIdx_A1);
+      if(data.nextIdx_A2!=null) LS.s('ap_nextIdx_A2',data.nextIdx_A2);
+      if(data.nextIdx_B1!=null) LS.s('ap_nextIdx_B1',data.nextIdx_B1);
+      if(data.nextIdx_B2!=null) LS.s('ap_nextIdx_B2',data.nextIdx_B2);
       if(data.learned)    LS.s('ap_learned',data.learned);
       document.getElementById('sheetOv').classList.remove('open');
       location.reload();
@@ -883,8 +1133,14 @@ document.getElementById('importFile').addEventListener('change',(e)=>{
 });
 document.getElementById('resetBtn').addEventListener('click',()=>{
   if(confirm(T('resetConfirm'))){
-    ['ap_progress','ap_mistakes','ap_dailyStats','ap_streak','ap_nextIdx',
-     'ap_weekStart','ap_learned','ap_qDate','ap_queue','ap_qi'].forEach(k=>LS.d(k));
+    ['ap_progress','ap_mistakes','ap_dailyStats','ap_streak','ap_streakDate','ap_streakEarned',
+     'ap_nextIdx','ap_nextIdx_A1','ap_nextIdx_A2','ap_nextIdx_B1','ap_nextIdx_B2',
+     'ap_qDate_A1','ap_qDate_A2','ap_qDate_B1','ap_qDate_B2',
+     'ap_queue_A1','ap_queue_A2','ap_queue_B1','ap_queue_B2',
+     'ap_qi_A1','ap_qi_A2','ap_qi_B1','ap_qi_B2',
+     'ap_activeLevel','ap_weekStart','ap_learned',
+     'ap_cert_A1','ap_cert_A2','ap_cert_B1','ap_cert_B2',
+     'ap_qDate','ap_queue','ap_qi'].forEach(k=>LS.d(k));
     document.getElementById('sheetOv').classList.remove('open');
     location.reload();
   }
