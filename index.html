@@ -142,6 +142,8 @@ main{
   font-size:clamp(1.9rem,8.5vw,2.9rem);font-weight:700;
   text-align:center;color:var(--ink);line-height:1.1;letter-spacing:-.02em;
 }
+.word-text.long{font-size:clamp(1.25rem,5.5vw,1.85rem);}
+.word-text.very-long{font-size:clamp(0.95rem,4vw,1.35rem);}
 
 /* Feedback inside card: banner + meaning ONLY (no example here) */
 .feedback-area{margin-top:16px;animation:fadeUp .22s ease;}
@@ -707,7 +709,12 @@ function showWord(){
 
   // Reset card
   document.getElementById('wordCard').className='word-card';
-  document.getElementById('wordText').textContent=word.word||'—';
+  const wEl=document.getElementById('wordText');
+  wEl.textContent=word.word||'—';
+  const wlen=(word.word||'').length;
+  wEl.classList.remove('long','very-long');
+  if(wlen>18)wEl.classList.add('very-long');
+  else if(wlen>12)wEl.classList.add('long');
   document.getElementById('levelPill').textContent=word.level||'—';
   const hint=document.getElementById('artHint');
   hint.className='art-hint';hint.textContent='';
@@ -790,10 +797,12 @@ function checkMasteryGate(){
   const lv=getActiveLevel();
   const prog=getProgress();
   const pool=allWords.filter(w=>w.level===lv);
+  if(!pool.length)return false;
   const mastered=pool.filter(w=>prog[w.id]?.mastered).length;
-  const pct=pool.length>0?mastered/pool.length:0;
+  const pct=mastered/pool.length;
   const certKey=`ap_cert_${lv}`;
-  return pct>=MASTERY_PASS_PCT&&!LS.g(certKey,false)&&mastered>=10;
+  if(LS.g(certKey,false))return false;
+  return pct>=0.7&&mastered>=5;
 }
 function startMasteryTest(){
   const lv=getActiveLevel();
