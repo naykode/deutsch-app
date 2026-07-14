@@ -157,6 +157,8 @@ main{
   text-align:center;color:var(--ink);line-height:1.1;letter-spacing:-.02em;
   margin-bottom:12px;
 }
+.verb-text.long{font-size:clamp(1.25rem,5.5vw,1.85rem);}
+.verb-text.very-long{font-size:clamp(0.95rem,4vw,1.35rem);}
 
 /* Example sentence before answer */
 .example-hint{
@@ -867,7 +869,12 @@ function showWord(){
 
   // Reset card
   document.getElementById('verbCard').className='verb-card';
-  document.getElementById('verbText').textContent=word.word||'—';
+  const vEl=document.getElementById('verbText');
+  vEl.textContent=word.word||'—';
+  const vlen=(word.word||'').length;
+  vEl.classList.remove('long','very-long');
+  if(vlen>18)vEl.classList.add('very-long');
+  else if(vlen>12)vEl.classList.add('long');
   document.getElementById('levelPill').textContent=word.level||'—';
 
   // Separable badge
@@ -1121,17 +1128,15 @@ let masteryCorrect=0;let masteryAnswered=false;
 let masteryCurrentChoices=[];
 
 function checkMasteryGate(){
-  // After daily session: check if level is ready for mastery test
   const lv=getActiveLevel();
   const prog=getProgress();
   const pool=allVerbs.filter(w=>w.level===lv);
+  if(!pool.length)return false;
   const masteredCount=pool.filter(w=>prog[w.id]?.mastered).length;
-  const total=pool.length;
-  const pct=total>0?masteredCount/total:0;
-  // Trigger if ≥80% mastered AND not already certified today
+  const pct=masteredCount/pool.length;
   const certKey=`vb_cert_${lv}`;
-  const alreadyCertified=LS.g(certKey,false);
-  return pct>=0.8&&!alreadyCertified&&masteredCount>=10;
+  if(LS.g(certKey,false))return false;
+  return pct>=0.7&&masteredCount>=5;
 }
 
 function startMasteryTest(){
