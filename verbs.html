@@ -881,10 +881,13 @@ function showWord(){
   const sb=document.getElementById('sepBadge');
   word.separable?sb.classList.remove('hidden'):sb.classList.add('hidden');
 
-  // Example hint — show only if example_verb exists (has blank)
+  // Example hint — prefer example_de with ___, fallback to example_verb (B2 has full sentence there)
   const exHint=document.getElementById('exHint');
-  if(word.example_verb){
-    const html=(word.example_verb||'').replace('___','<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
+  const exDeSrc=word.example_de||'';
+  const exVerbSrc=word.example_verb||'';
+  const hintSrc=exDeSrc.includes('___')?exDeSrc:(exVerbSrc.includes('___')?exVerbSrc:'');
+  if(hintSrc){
+    const html=hintSrc.replace('___','<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
     exHint.innerHTML=html;
     exHint.classList.remove('hidden');
   }else{
@@ -931,16 +934,33 @@ function showRound2(word){
   document.getElementById('exHint').classList.add('hidden');
   document.getElementById('feedbackArea').classList.add('hidden');
 
-  // Build fill sentence
+  // Build fill sentence — use language-appropriate example column with ___
   const fillSentence=document.getElementById('fillSentence');
-  if(word.example_verb){
-    fillSentence.innerHTML=(word.example_verb).replace(
-      '___','<span class="blank-slot">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'
-    );
-  }else{
-    // Fallback: no example_verb — skip Round 2
+  // Pick the sentence in user's language, fallback to example_de
+  const LANG_EX_COLS={en:'example_en',ar:'example_ar',tr:'example_tr',fa:'example_fa',ku:'example_ku',ps:'example_ps'};
+  const langCol=LANG_EX_COLS[getLang()]||'example_en';
+  // Prefer de for fill-in (grammar practice), use translation as hint below
+  // A1/A2/B1: blank is in example_de; B2: blank is in example_verb
+  const exDe=word.example_de||'';
+  const exVb=word.example_verb||'';
+  const fillSrc=exDe.includes('___')?exDe:(exVb.includes('___')?exVb:'');
+  if(!fillSrc){
+    // No blank sentence — skip Round 2
     advanceToNext();return;
   }
+  fillSentence.innerHTML=fillSrc.replace(
+    '___','<span class="blank-slot">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'
+  );
+  // Show translation hint below input
+  const transHint=word[langCol]||word.example_en||'';
+  let thEl=document.getElementById('fillTransHint');
+  if(!thEl){
+    thEl=document.createElement('div');
+    thEl.id='fillTransHint';
+    thEl.style.cssText='font-size:.78rem;color:var(--ink3);font-weight:600;text-align:center;padding:2px 0;';
+    fillSentence.insertAdjacentElement('afterend',thEl);
+  }
+  thEl.textContent=transHint;
 
   // Reset input
   const inp=document.getElementById('fillInput');
@@ -1061,19 +1081,22 @@ function handleFillAnswer(){
 }
 
 function getCorrectFillAnswer(word){
-  // example_verb has ___ where the verb goes
-  // example_de has the full sentence
-  // Extract what sits at the ___ position in example_de
-  if(!word.example_verb||!word.example_de)return word.word;
-  const blankIdx=word.example_verb.indexOf('___');
-  if(blankIdx<0)return word.word;
-  const before=word.example_verb.slice(0,blankIdx);
-  const after=word.example_verb.slice(blankIdx+3);
-  // Match: everything in example_de between `before` and `after`
-  const escaped=(s)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  const re=new RegExp(escaped(before)+'(.+?)'+escaped(after));
-  const m=word.example_de.match(re);
-  if(m&&m[1])return m[1].trim();
+  const exDe=word.example_de||'';
+  const exVb=word.example_verb||'';
+  if(exDe.includes('___')){
+    // A1/A2/B1: example_verb is the conjugated answer form
+    if(exVb&&!exVb.includes('___'))return exVb.trim();
+    return word.word;
+  }
+  if(exVb.includes('___')){
+    // B2: extract the answer from the full example_de sentence
+    // by comparing example_de (full) with example_verb (has ___)
+    const before=exVb.slice(0,exVb.indexOf('___'));
+    const after=exVb.slice(exVb.indexOf('___')+3);
+    const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const m=exDe.match(new RegExp(esc(before)+'(.+?)'+esc(after)));
+    if(m&&m[1])return m[1].trim();
+  }
   return word.word;
 }
 
@@ -1172,8 +1195,8 @@ function showMasteryQuestion(){
         <span class="level-pill">${word.level}</span>
       </div>
       <div class="verb-text">${word.word}</div>
-      <div class="example-hint" id="mExHint" style="${word.example_verb?'':'display:none'}">
-        ${(word.example_verb||'').replace('___','<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>')}
+      <div class="example-hint" id="mExHint" style="${(word.example_de||'').includes('___')?'':'display:none'}">
+        ${(word.example_de||'').replace('___','<span class=\"blank\">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>')}
       </div>
       <div class="feedback-area hidden" id="mFeedback">
         <div class="fb-banner" id="mBanner"></div>
