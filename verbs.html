@@ -650,42 +650,69 @@ function isWeeklyReview(){
   const diff=Math.floor((new Date(today())-new Date(ws))/86400000);
   return diff>0&&diff%7===0;
 }
-function buildQueue(){
-  if(isReviewSes)return;
+// ── Pick words for one level (mistakes-first + new words) ──
+function pickWordsForLevel(lv){
+  const prog=getProgress();
+  const quota=DAILY_QUOTA[lv]||10;
+  const pool=allVerbs.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);
+  if(!pool.length)return[];
+  const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
+  // Collect mistakes: today + last 7 days + all-time
+  const mistakes=getMistakes();
+  const mistakeIdSet=new Set();
   const t=today();
-  const lv=getActiveLevel();
-  const qDateKey=`vb_qDate_${lv}`;
-  const saved=LS.g(qDateKey,null);
-  if(saved===t){
-    // Today's queue for this level already built — restore it
-    const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
-    const savedQueue=LS.g(`vb_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean);
-    if(savedQueue.length){
-      todayQueue=savedQueue;
-      queueIndex=LS.g(`vb_qi_${lv}`,0);
-      return;
-    }
+  (mistakes[t]||[]).forEach(id=>mistakeIdSet.add(id));
+  for(let d=1;d<=7;d++){
+    const dt=new Date(t);dt.setDate(dt.getDate()-d);
+    (mistakes[dt.toISOString().slice(0,10)]||[]).forEach(id=>mistakeIdSet.add(id));
   }
+  Object.values(mistakes).forEach(ids=>ids.forEach(id=>mistakeIdSet.add(id)));
+  const mistakeWords=shuffle(
+    [...mistakeIdSet].map(id=>wm[id]).filter(w=>w&&w.level===lv)
+  ).slice(0,quota);
+  const mistakeSet=new Set(mistakeWords.map(w=>w.id));
+  const slotsLeft=quota-mistakeWords.length;
+  let newWords=[];
+  if(slotsLeft>0){
+    const unmastered=pool.filter(w=>!prog[w.id]?.mastered&&!mistakeSet.has(w.id));
+    const src=unmastered.length>0?unmastered:pool.filter(w=>!mistakeSet.has(w.id));
+    const idxKey=`vb_nextIdx_${lv}`;
+    let idx=LS.g(idxKey,0);
+    if(idx>=src.length)idx=0;
+    let scanned=0;
+    while(newWords.length<slotsLeft&&scanned<src.length){
+      newWords.push(src[idx%src.length]);idx++;scanned++;
+    }
+    LS.s(idxKey,idx%Math.max(src.length,1));
+    const learned=new Set(LS.g('vb_learned',[]));
+    newWords.forEach(w=>learned.add(w.id));
+    LS.s('vb_learned',[...learned]);
+  }
+  return shuffle([...mistakeWords,...newWords]);
+}
+
+// ── Build ALL level queues once per day on load ──
+function buildAllQueues(){
+  const t=today();
   updateStreak(t);
   if(!LS.g('vb_weekStart',null))LS.s('vb_weekStart',t);
   if(isWeeklyReview()){buildWeeklyReview(t);return;}
+  LEVELS.forEach(lv=>{
+    if(LS.g(`vb_qDate_${lv}`,null)===t)return; // already built today
+    const q=pickWordsForLevel(lv);
+    LS.s(`vb_qDate_${lv}`,t);
+    LS.s(`vb_queue_${lv}`,q.map(w=>w.id));
+    LS.s(`vb_qi_${lv}`,0);
+  });
+}
 
+// ── Load queue for active level from saved data ──
+function buildQueue(){
+  if(isReviewSes)return;
+  const lv=getActiveLevel();
   const wm=Object.fromEntries(allVerbs.map(w=>[w.id,w]));
-  const prog=getProgress();
-  const mistakeIds=getMistakes()[ydStr()]||[];
-  // Only include mistakes from the active level
-  let mistakeWords=mistakeIds.map(id=>wm[id]).filter(w=>w&&w.level===lv&&!prog[w.id]?.mastered);
-  const quota=DAILY_QUOTA[lv]||10;
-  if(mistakeWords.length>quota) mistakeWords=mistakeWords.slice(0,quota);
-  const newWords=pickNewWords();
-  const learned=new Set(LS.g('vb_learned',[]));
-  newWords.forEach(w=>learned.add(w.id));
-  LS.s('vb_learned',[...learned]);
-  todayQueue=shuffle([...mistakeWords,...newWords]);
-  queueIndex=0;
-  LS.s(qDateKey,t);
-  LS.s(`vb_queue_${lv}`,todayQueue.map(w=>w.id));
-  LS.s(`vb_qi_${lv}`,0);
+  todayQueue=LS.g(`vb_queue_${lv}`,[]).map(id=>wm[id]).filter(Boolean);
+  queueIndex=LS.g(`vb_qi_${lv}`,0);
 }
 function buildWeeklyReview(t){
   const CAP=70; // max 70 verbs per weekly review
@@ -719,26 +746,7 @@ function buildWeeklyReview(t){
 }
 function getActiveLevel(){return LS.g('vb_activeLevel','A1');}
 
-function pickNewWords(){
-  const prog=getProgress();
-  const lv=getActiveLevel();
-  const quota=DAILY_QUOTA[lv]||10;
-  const pool=allVerbs.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);
-  if(!pool.length)return[];
-  const unmastered=pool.filter(w=>!prog[w.id]?.mastered);
-  const src=unmastered.length>0?unmastered:pool;
-  const idxKey=`vb_nextIdx_${lv}`;
-  let idx=LS.g(idxKey,0);
-  if(idx>=src.length)idx=0;
-  const res=[];
-  let scanned=0;
-  while(res.length<quota&&scanned<src.length){
-    res.push(src[idx%src.length]);
-    idx++;scanned++;
-  }
-  LS.s(idxKey,idx%src.length);
-  return res;
-}
+
 function updateStreak(t){
   // Run once per day — guard with vb_streakDate
   const lastStreakDate=LS.g('vb_streakDate',null);
@@ -1416,10 +1424,9 @@ function switchLevel(newLv){
   LS.s('vb_activeLevel',newLv);
   sesCorrect=0;sesWrong=0;sesMistakeIds=[];isReviewSes=false;answered=false;
   sesDisplayBase=getDailyStats()[today()]?.correct||0;
-  buildQueue(); // restores saved queue if already built today, else builds new
+  buildQueue(); // restore pre-built queue, no rebuild
+  if(queueIndex>=todayQueue.length&&todayQueue.length>0){endSession();return;}
   if(todayQueue.length===0){endSession();return;}
-  // If this level's session is already fully done today, show done screen
-  if(queueIndex>=todayQueue.length){endSession();return;}
   showScreen('screen-practice');
   showWord();
 }
@@ -1470,7 +1477,8 @@ async function init(){
     allVerbs=await fetchAllVerbs();
     migrateIndexKeys();
     sesDisplayBase=getDailyStats()[today()]?.correct||0;
-    buildQueue();
+    buildAllQueues();  // build all level queues once
+    buildQueue();      // load active level queue
     document.getElementById('screen-loading').classList.add('hidden');
     showWord();
   }catch(err){
