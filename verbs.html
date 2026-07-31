@@ -825,10 +825,10 @@ function getDisplayCorrect(){
 function getVocabStat(){
   if(!allVerbs.length)return{text:'—',lbl:'📚 Verbs'};
   const lv=getActiveLevel();
-  const quota=DAILY_QUOTA[lv]||10;
-  const done=Math.min(queueIndex,todayQueue.length);
-  const total=todayQueue.length||quota;
-  return{text:`${done}/${total}`,lbl:`📚 ${lv} Verbs`};
+  const prog=getProgress();
+  const pool=allVerbs.filter(w=>w.level===lv);
+  const mastered=pool.filter(w=>prog[w.id]?.mastered).length;
+  return{text:`${mastered}/${pool.length}`,lbl:`📚 ${lv} Verbs`};
 }
 function refreshStats(){
   const prog=getProgress();
