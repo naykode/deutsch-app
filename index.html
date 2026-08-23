@@ -520,8 +520,10 @@ async function fetchAllWords(){
 // ═══════════════════════════════════════
 function isWeeklyReview(){
   const ws=LS.g('ap_weekStart',null);if(!ws)return false;
-  const diff=Math.floor((new Date(today())-new Date(ws))/86400000);
-  return diff>0&&diff%7===0;
+  // Use last review date — trigger if 7+ days since last weekly review
+  const lastReview=LS.g('ap_lastWeeklyReview',ws);
+  const diff=Math.floor((new Date(today())-new Date(lastReview))/86400000);
+  return diff>=7;
 }
 // ── Pick words for one level (mistakes-first + new words) ──
 function pickWordsForLevel(lv){
@@ -530,24 +532,21 @@ function pickWordsForLevel(lv){
   const pool=allWords.filter(w=>w.level===lv).sort((a,b)=>a.id-b.id);
   if(!pool.length)return[];
   const wm=Object.fromEntries(allWords.map(w=>[w.id,w]));
-  // Collect mistakes: today + last 7 days + all-time
+  // Collect mistakes: today + last 7 days only
   const mistakes=getMistakes();
   const mistakeIdSet=new Set();
-  // Today
   const t=today();
-  (mistakes[t]||[]).forEach(id=>mistakeIdSet.add(id));
-  // Last 7 days
-  for(let d=1;d<=7;d++){
+  for(let d=0;d<=7;d++){
     const dt=new Date(t);dt.setDate(dt.getDate()-d);
     const ds=dt.toISOString().slice(0,10);
     (mistakes[ds]||[]).forEach(id=>mistakeIdSet.add(id));
   }
-  // All-time
-  Object.values(mistakes).forEach(ids=>ids.forEach(id=>mistakeIdSet.add(id)));
   // Filter mistakes to this level only
+  // Cap mistakes at 50% of quota — always guarantee new words slots
+  const mistakeCap=Math.floor(quota*0.5);
   const mistakeWords=shuffle(
     [...mistakeIdSet].map(id=>wm[id]).filter(w=>w&&w.level===lv)
-  ).slice(0,quota);
+  ).slice(0,mistakeCap);
   const mistakeSet=new Set(mistakeWords.map(w=>w.id));
   const slotsLeft=quota-mistakeWords.length;
   // Fill remaining slots with new/unmastered words (cycle)
@@ -617,6 +616,9 @@ function buildWeeklyReview(t){
   });
   todayQueue=[...shuffle(weak),...shuffle(strong)].slice(0,CAP);
   queueIndex=0;
+  // Save last weekly review date so next review triggers 7 days from now
+  LS.s('ap_lastWeeklyReview',t);
+  LS.s('ap_weekStart',t); // reset week start
   const lv=getActiveLevel();
   LS.s(`ap_qDate_${lv}`,t);
   LS.s(`ap_queue_${lv}`,todayQueue.map(w=>w.id));
@@ -1178,7 +1180,7 @@ document.getElementById('resetBtn').addEventListener('click',()=>{
      'ap_qDate_A1','ap_qDate_A2','ap_qDate_B1','ap_qDate_B2',
      'ap_queue_A1','ap_queue_A2','ap_queue_B1','ap_queue_B2',
      'ap_qi_A1','ap_qi_A2','ap_qi_B1','ap_qi_B2',
-     'ap_activeLevel','ap_weekStart','ap_learned',
+     'ap_activeLevel','ap_weekStart','ap_lastWeeklyReview','ap_learned',
      'ap_cert_A1','ap_cert_A2','ap_cert_B1','ap_cert_B2',
      'ap_qDate','ap_queue','ap_qi','ap_allBuilt'].forEach(k=>LS.d(k));
     document.getElementById('sheetOv').classList.remove('open');
