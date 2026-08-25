@@ -650,12 +650,28 @@ const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floo
 // ═══════════════════════════════════════
 //  ANSWER
 // ═══════════════════════════════════════
+function removeMistake(wordId){
+  // Remove word from ALL mistake dates (streak>=2 means truly learned)
+  const m=getMistakes();
+  let changed=false;
+  Object.keys(m).forEach(dt=>{
+    const idx=m[dt].indexOf(wordId);
+    if(idx>-1){m[dt].splice(idx,1);changed=true;}
+  });
+  if(changed)saveMistakes(m);
+  // Also remove from session mistake list
+  const si=sesMistakeIds.indexOf(wordId);
+  if(si>-1)sesMistakeIds.splice(si,1);
+}
+
 function recordAnswer(word,correct){
   const t=today();const prog=getProgress();
   const p=prog[word.id]||{streak:0,correct:0,mastered:false};
   if(correct){
     p.streak=(p.streak||0)+1;p.correct=(p.correct||0)+1;
     if(p.streak>=MASTERY_N)p.mastered=true;
+    // streak>=2: remove from mistakes list (word is now reliably known)
+    if(p.streak>=2)removeMistake(word.id);
     sesCorrect++;
     const ds=getDailyStats();ds[t]=ds[t]||{correct:0};ds[t].correct++;saveDailyStats(ds);
   }else{
